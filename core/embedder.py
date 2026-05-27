@@ -23,19 +23,22 @@ def create_embeddings(model: str = DEFAULT_EMBEDDING_MODEL) -> GoogleGenerativeA
 def create_vector_store(
     chunks: list[Document],
     collection_name: str,
-    persist_directory: str | Path = DEFAULT_PERSIST_DIRECTORY,
+    persist_directory: str | Path | None = DEFAULT_PERSIST_DIRECTORY,
 ) -> Chroma:
-    """Create and persist a Chroma vector store from document chunks."""
+    """Create a Chroma vector store from document chunks."""
     if not chunks:
         raise ValueError("No chunks were provided for embedding.")
 
-    directory = ensure_directory(persist_directory)
+    persist_path = None
+    if persist_directory is not None:
+        persist_path = str(ensure_directory(persist_directory))
+
     embeddings = create_embeddings()
     return Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
         collection_name=collection_name,
-        persist_directory=str(directory),
+        persist_directory=persist_path,
     )
 
 
