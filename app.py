@@ -17,6 +17,7 @@ from utils.helpers import load_environment, safe_collection_name
 
 
 APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
+SOURCE_SNIPPET_LENGTH = 280
 
 
 def configure_page() -> None:
@@ -206,12 +207,21 @@ def format_sources(source_documents) -> list[str]:
         if key in seen:
             continue
         seen.add(key)
+        snippet = format_source_snippet(document.page_content)
+        snippet_html = f"<br><br>{snippet}" if snippet else ""
         sources.append(
             f'<div class="lumina-source"><strong>{filename}</strong> | '
-            f'Halaman/bagian: {page}<br>{section}</div>'
+            f"Halaman/bagian: {page}<br>{section}{snippet_html}</div>"
         )
 
     return sources
+
+
+def format_source_snippet(text: str, max_length: int = SOURCE_SNIPPET_LENGTH) -> str:
+    snippet = " ".join(str(text).split())
+    if len(snippet) > max_length:
+        snippet = f"{snippet[: max_length - 3].rstrip()}..."
+    return escape(snippet)
 
 
 def main() -> None:
