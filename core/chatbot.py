@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
+CHAT_MODEL_ENV_VAR = "GEMINI_CHAT_MODEL"
 DEFAULT_CHAT_MODEL = "gemini-1.5-flash"
 
 QA_PROMPT = PromptTemplate(
@@ -25,12 +28,18 @@ QA_PROMPT = PromptTemplate(
 )
 
 
+def resolve_chat_model(model: str | None = None) -> str:
+    """Resolve the chat model from an explicit value, environment, or default."""
+    resolved_model = model or os.getenv(CHAT_MODEL_ENV_VAR) or DEFAULT_CHAT_MODEL
+    return resolved_model.strip() or DEFAULT_CHAT_MODEL
+
+
 def create_llm(
-    model: str = DEFAULT_CHAT_MODEL,
+    model: str | None = None,
     temperature: float = 0.2,
 ) -> ChatGoogleGenerativeAI:
     """Create the Gemini chat model."""
-    return ChatGoogleGenerativeAI(model=model, temperature=temperature)
+    return ChatGoogleGenerativeAI(model=resolve_chat_model(model), temperature=temperature)
 
 
 def create_qa_chain(vector_store: Chroma, k: int = 4) -> RetrievalQA:
