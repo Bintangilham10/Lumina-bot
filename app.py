@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import tempfile
 from html import escape
 from pathlib import Path
@@ -64,6 +65,13 @@ def initialize_state() -> None:
             st.session_state[key] = value
 
 
+def reset_document_state() -> None:
+    st.session_state.messages = []
+    st.session_state.qa_chain = None
+    st.session_state.document_meta = None
+    st.session_state.processed_file_id = None
+
+
 def save_uploaded_file(uploaded_file) -> Path:
     suffix = Path(uploaded_file.name).suffix.lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
@@ -71,27 +79,41 @@ def save_uploaded_file(uploaded_file) -> Path:
         return Path(temp_file.name)
 
 
+def uploaded_file_hash(uploaded_file) -> str:
+    return hashlib.sha256(uploaded_file.getbuffer()).hexdigest()
+
+
 def process_uploaded_document(uploaded_file) -> None:
-    file_id = f"{uploaded_file.name}-{uploaded_file.size}"
+    file_hash = uploaded_file_hash(uploaded_file)
+    file_id = f"{uploaded_file.name}-{uploaded_file.size}-{file_hash}"
     if st.session_state.processed_file_id == file_id:
         return
 
     with st.spinner("Memproses dokumen dan membuat indeks pencarian..."):
         temp_path = save_uploaded_file(uploaded_file)
-        loaded = load_document(temp_path)
-        chunks = split_documents(loaded.documents)
-        collection_name = safe_collection_name(["lumina", Path(uploaded_file.name).stem, str(uploaded_file.size)])
-        vector_store = create_vector_store(chunks, collection_name=collection_name)
+        try:
+            loaded = load_document(temp_path)
+            chunks = split_documents(loaded.documents)
+            collection_name = safe_collection_name(
+                ["lumina", Path(uploaded_file.name).stem, file_hash[:16]]
+            )
+            vector_store = create_vector_store(
+                chunks,
+                collection_name=collection_name,
+                persist_directory=None,
+            )
 
-        st.session_state.qa_chain = create_qa_chain(vector_store)
-        st.session_state.document_meta = {
-            "filename": uploaded_file.name,
-            "file_type": loaded.file_type,
-            "total_pages": loaded.total_pages,
-            "total_chunks": len(chunks),
-        }
-        st.session_state.processed_file_id = file_id
-        st.session_state.messages = []
+            st.session_state.qa_chain = create_qa_chain(vector_store)
+            st.session_state.document_meta = {
+                "filename": uploaded_file.name,
+                "file_type": loaded.file_type,
+                "total_pages": loaded.total_pages,
+                "total_chunks": len(chunks),
+            }
+            st.session_state.processed_file_id = file_id
+            st.session_state.messages = []
+        finally:
+            temp_path.unlink(missing_ok=True)
 
 
 def render_sidebar() -> None:
@@ -108,6 +130,7 @@ def render_sidebar() -> None:
                 process_uploaded_document(uploaded_file)
                 st.success("Dokumen siap ditanyakan.")
             except Exception as exc:
+                reset_document_state()
                 st.error(f"Gagal memproses dokumen: {exc}")
 
         meta = st.session_state.document_meta
