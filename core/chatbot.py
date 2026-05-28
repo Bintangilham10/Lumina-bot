@@ -39,14 +39,23 @@ def create_llm(
     temperature: float = 0.2,
 ) -> ChatGoogleGenerativeAI:
     """Create the Gemini chat model."""
+    if not 0 <= temperature <= 2:
+        raise ValueError("temperature must be between 0 and 2.")
     return ChatGoogleGenerativeAI(model=resolve_chat_model(model), temperature=temperature)
 
 
-def create_qa_chain(vector_store: Chroma, k: int = 4) -> RetrievalQA:
+def create_qa_chain(
+    vector_store: Chroma,
+    k: int = 4,
+    model: str | None = None,
+    temperature: float = 0.2,
+) -> RetrievalQA:
     """Create a RetrievalQA chain from a Chroma vector store."""
+    if k <= 0:
+        raise ValueError("retrieval k must be greater than 0.")
     retriever = vector_store.as_retriever(search_kwargs={"k": k})
     return RetrievalQA.from_chain_type(
-        llm=create_llm(),
+        llm=create_llm(model=model, temperature=temperature),
         chain_type="stuff",
         retriever=retriever,
         return_source_documents=True,
