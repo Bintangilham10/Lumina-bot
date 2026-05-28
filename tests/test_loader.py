@@ -24,6 +24,14 @@ class LoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unsupported file type"):
                 load_document(path)
 
+    def test_load_document_rejects_directory_paths(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "book.pdf"
+            path.mkdir()
+
+            with self.assertRaisesRegex(ValueError, "not a file"):
+                load_document(path)
+
 
 if __name__ == "__main__":
     unittest.main()
