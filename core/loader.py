@@ -28,9 +28,11 @@ class LoadedDocument:
 
 def load_document(file_path: str | Path) -> LoadedDocument:
     """Load a PDF, DOCX, or EPUB file into LangChain Document objects."""
-    path = Path(file_path)
+    path = Path(file_path).expanduser()
     if not path.exists():
         raise FileNotFoundError(f"Document not found: {path}")
+    if not path.is_file():
+        raise ValueError(f"Document path is not a file: {path}")
     if not is_supported_file(path):
         raise ValueError(
             f"Unsupported file type '{path.suffix}'. Supported formats: {supported_extensions_text()}."
@@ -49,7 +51,7 @@ def load_document(file_path: str | Path) -> LoadedDocument:
 
     return LoadedDocument(
         filename=path.name,
-        file_path=path,
+        file_path=path.resolve(),
         file_type=suffix.lstrip(".").upper(),
         total_pages=len(documents),
         documents=documents,
