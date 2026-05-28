@@ -1,50 +1,35 @@
 # Lumina Doc
 
-**AI-Powered Document Chatbot** — Upload your documents and ask anything about their content.
+Lumina Doc is an AI-powered document chatbot for PDF, DOCX, and EPUB files. It uses Google Gemini, LangChain, and ChromaDB to index uploaded documents and answer questions from their contents.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python)
-![LangChain](https://img.shields.io/badge/LangChain-0.2+-green?style=flat-square)
-![Gemini](https://img.shields.io/badge/Google_Gemini-1.5_Flash-orange?style=flat-square&logo=google)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red?style=flat-square&logo=streamlit)
-![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)
-
----
-
-## Overview
-
-Lumina Doc is an AI-powered chatbot application that enables users to upload documents in various formats (PDF, DOCX, EPUB) and interact with their content through natural language queries using **Google Gemini AI**.
-
-This project was developed as part of a **Kerja Praktik (Internship)** initiative focused on building a prototype for a national book conversion system based on Artificial Intelligence.
-
----
+App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 
 ## Features
 
-- Multi-format document support: PDF, DOCX, and EPUB
-- Natural language Q&A powered by Google Gemini 1.5 Flash
-- Local vector storage using ChromaDB
-- Clean and interactive web interface built with Streamlit
-- Command-line interface (CLI) for terminal-based usage
-- Bilingual support: Bahasa Indonesia and English
-
----
+- PDF, DOCX, and EPUB document loading
+- Google Gemini 1.5 Flash for document question answering
+- Google Generative AI embeddings with local ChromaDB storage
+- Streamlit web UI with Indonesian language support
+- CLI chatbot for terminal workflows
+- Document metadata display: filename, pages/sections, and total chunks
+- Source metadata and snippets for retrieved answers
 
 ## Project Structure
 
-```
+```text
 lumina-doc/
 ├── .env.example
 ├── .gitignore
 ├── README.md
 ├── requirements.txt
-├── main.py               # CLI entry point
-├── app.py                # Streamlit web UI entry point
+├── main.py
+├── app.py
 ├── core/
 │   ├── __init__.py
-│   ├── loader.py         # Document loader (PDF, DOCX, EPUB)
-│   ├── splitter.py       # Text chunking
-│   ├── embedder.py       # Embedding generation
-│   └── chatbot.py        # QA chain logic
+│   ├── loader.py
+│   ├── splitter.py
+│   ├── embedder.py
+│   └── chatbot.py
 ├── data/
 │   └── .gitkeep
 └── utils/
@@ -52,25 +37,14 @@ lumina-doc/
     └── helpers.py
 ```
 
----
-
 ## Requirements
 
-- Python 3.10 or higher
-- Google Gemini API key (free at [Google AI Studio](https://aistudio.google.com/app/apikey))
-
----
+- Python 3.10 or newer
+- Google Gemini API key from Google AI Studio
 
 ## Installation
 
-**1. Clone the repository**
-
-```bash
-git clone https://github.com/username/lumina-doc.git
-cd lumina-doc
-```
-
-**2. Create and activate a virtual environment**
+1. Create and activate a virtual environment:
 
 ```bash
 python -m venv venv
@@ -78,99 +52,102 @@ python -m venv venv
 # Windows
 venv\Scripts\activate
 
-# macOS / Linux
+# macOS/Linux
 source venv/bin/activate
 ```
 
-**3. Install dependencies**
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Configure environment variables**
+3. Configure environment variables:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in your API key:
+Then edit `.env`:
 
 ```env
-GOOGLE_API_KEY=your_gemini_api_key_here
+GOOGLE_API_KEY=your_key_here
+GEMINI_CHAT_MODEL=gemini-1.5-flash
+GEMINI_EMBEDDING_MODEL=models/text-embedding-004
 ```
 
----
+## Streamlit Usage
 
-## Usage
-
-**Web Interface (Recommended)**
+Run the web app:
 
 ```bash
 streamlit run app.py
 ```
 
-Open your browser and navigate to `http://localhost:8501`.
+Open the local Streamlit URL, upload a PDF, DOCX, or EPUB file from the sidebar, then ask questions in Bahasa Indonesia or English.
 
-**Command Line Interface**
+## CLI Usage
+
+Run with a document path:
+
+```bash
+python main.py path/to/document.pdf
+```
+
+Or start the CLI and enter the path when prompted:
 
 ```bash
 python main.py
 ```
 
----
+Use `exit`, `quit`, or `q` to close the chatbot.
 
-## Example
+Useful CLI options:
 
+| Option | Description |
+| --- | --- |
+| `--chunk-size` | Maximum characters per chunk. Default: `1000` |
+| `--chunk-overlap` | Characters shared between adjacent chunks. Default: `200` |
+| `--retrieval-k` | Number of chunks retrieved for each question. Default: `4` |
+| `--chat-model` | Override `GEMINI_CHAT_MODEL` for one run |
+| `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
+| `--temperature` | Response randomness from `0` to `2`. Default: `0.2` |
+| `--hide-sources` | Hide source snippets in terminal answers |
+| `--debug` | Print full tracebacks for troubleshooting |
+
+Example with retrieval tuning:
+
+```bash
+python main.py path/to/document.pdf --chunk-size 1200 --chunk-overlap 180 --retrieval-k 5
 ```
-Loading document...
-Splitting text into 142 chunks...
-Saving to vector database...
 
-Lumina Doc is ready. Type 'exit' to quit.
+## Testing
 
-You : What is the main topic of chapter one?
-AI  : Chapter one discusses...
+Run the test suite:
 
-You : Who is the author of this book?
-AI  : Based on the document, the author is...
+```bash
+python -m unittest discover -s tests
 ```
 
----
+## How It Works
 
-## Dependencies
+1. `core/loader.py` extracts text and metadata from PDF, DOCX, or EPUB files.
+2. `core/splitter.py` splits text with `RecursiveCharacterTextSplitter` using `chunk_size=1000` and `chunk_overlap=200`.
+3. `core/embedder.py` creates Google Generative AI embeddings and stores vectors in ChromaDB.
+4. `core/chatbot.py` creates a `RetrievalQA` chain with Gemini 1.5 Flash.
+5. `app.py` and `main.py` provide Streamlit and CLI interfaces.
 
-| Package | Purpose |
-|---------|---------|
-| langchain | AI orchestration framework |
-| langchain-google-genai | Google Gemini integration |
-| chromadb | Local vector database |
-| pymupdf | PDF parsing |
-| python-docx | DOCX parsing |
-| ebooklib | EPUB parsing |
-| streamlit | Web UI framework |
-| python-dotenv | Environment variable management |
+## Environment Variables
 
----
+| Name | Description |
+| --- | --- |
+| `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
+| `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-1.5-flash` |
+| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/text-embedding-004` |
 
-## Roadmap
+## Notes
 
-- [x] PDF chatbot via CLI
-- [x] DOCX and EPUB support
-- [x] Web UI with Streamlit
-- [ ] Multi-document support
-- [ ] Conversation memory
-- [ ] Export chat history to PDF
-- [ ] Cloud deployment (Streamlit Cloud / Hugging Face Spaces)
-
----
-
-## Development Context
-
-Developed as part of the **Kerja Praktik** program for the national book conversion system prototype using Artificial Intelligence.
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+- ChromaDB data is stored in `chroma_db/` and ignored by Git.
+- CLI vector collections include the document name and file hash to avoid reusing a collection for different file contents.
+- Uploaded files are processed locally.
+- Answers are constrained to the uploaded document context. If the answer is not present, the assistant should say the information was not found in the document.
