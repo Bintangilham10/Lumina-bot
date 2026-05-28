@@ -6,7 +6,12 @@ import os
 import unittest
 from unittest.mock import patch
 
-from core.chatbot import DEFAULT_CHAT_MODEL, resolve_chat_model
+from core.chatbot import (
+    DEFAULT_CHAT_MODEL,
+    create_llm,
+    create_qa_chain,
+    resolve_chat_model,
+)
 from core.embedder import DEFAULT_EMBEDDING_MODEL, resolve_embedding_model
 
 
@@ -34,6 +39,14 @@ class ModelConfigTests(unittest.TestCase):
     def test_embedding_model_uses_environment_override(self) -> None:
         with patch.dict(os.environ, {"GEMINI_EMBEDDING_MODEL": " env-model "}, clear=True):
             self.assertEqual(resolve_embedding_model(), "env-model")
+
+    def test_create_qa_chain_rejects_non_positive_retrieval_k(self) -> None:
+        with self.assertRaisesRegex(ValueError, "retrieval k"):
+            create_qa_chain(object(), k=0)  # type: ignore[arg-type]
+
+    def test_create_llm_rejects_out_of_range_temperature(self) -> None:
+        with self.assertRaisesRegex(ValueError, "temperature"):
+            create_llm(temperature=2.1)
 
 
 if __name__ == "__main__":
