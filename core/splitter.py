@@ -18,6 +18,12 @@ def split_documents(
     """Split documents into overlapping chunks for retrieval."""
     if not documents:
         raise ValueError("No documents were provided for splitting.")
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0.")
+    if chunk_overlap < 0:
+        raise ValueError("chunk_overlap cannot be negative.")
+    if chunk_overlap >= chunk_size:
+        raise ValueError("chunk_overlap must be smaller than chunk_size.")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
