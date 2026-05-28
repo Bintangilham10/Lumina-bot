@@ -14,6 +14,16 @@ class SplitterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "No documents"):
             split_documents([])
 
+    def test_split_documents_rejects_invalid_chunk_settings(self) -> None:
+        documents = [Document(page_content="Alpha beta", metadata={})]
+
+        with self.assertRaisesRegex(ValueError, "chunk_size"):
+            split_documents(documents, chunk_size=0)
+        with self.assertRaisesRegex(ValueError, "chunk_overlap"):
+            split_documents(documents, chunk_overlap=-1)
+        with self.assertRaisesRegex(ValueError, "smaller than chunk_size"):
+            split_documents(documents, chunk_size=100, chunk_overlap=100)
+
     def test_split_documents_adds_chunk_metadata(self) -> None:
         documents = [
             Document(
