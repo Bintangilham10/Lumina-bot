@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -31,6 +32,15 @@ def ensure_directory(path: str | Path) -> Path:
     return directory
 
 
+def file_sha256(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
+    """Return the SHA-256 hash for a file."""
+    hasher = hashlib.sha256()
+    with Path(path).open("rb") as file:
+        for chunk in iter(lambda: file.read(chunk_size), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def is_supported_file(path: str | Path) -> bool:
     """Return whether a file extension is supported."""
     return Path(path).suffix.lower() in SUPPORTED_EXTENSIONS
@@ -43,8 +53,10 @@ def supported_extensions_text() -> str:
 
 def clean_text(text: str) -> str:
     """Normalize extracted text while preserving paragraph boundaries."""
-    text = text.replace("\x00", " ")
-    text = re.sub(r"[ \t]+", " ", text)
+    text = str(text).replace("\x00", " ")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
