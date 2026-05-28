@@ -32,6 +32,7 @@ def create_vector_store(
     chunks: list[Document],
     collection_name: str,
     persist_directory: str | Path | None = DEFAULT_PERSIST_DIRECTORY,
+    embedding_model: str | None = None,
 ) -> Chroma:
     """Create a Chroma vector store from document chunks."""
     if not chunks:
@@ -41,7 +42,7 @@ def create_vector_store(
     if persist_directory is not None:
         persist_path = str(ensure_directory(persist_directory))
 
-    embeddings = create_embeddings()
+    embeddings = create_embeddings(embedding_model)
     return Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
@@ -53,11 +54,12 @@ def create_vector_store(
 def load_vector_store(
     collection_name: str,
     persist_directory: str | Path = DEFAULT_PERSIST_DIRECTORY,
+    embedding_model: str | None = None,
 ) -> Chroma:
     """Load an existing Chroma vector store collection."""
     directory = ensure_directory(persist_directory)
     return Chroma(
         collection_name=collection_name,
-        embedding_function=create_embeddings(),
+        embedding_function=create_embeddings(embedding_model),
         persist_directory=str(directory),
     )
