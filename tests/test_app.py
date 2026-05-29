@@ -74,6 +74,7 @@ class AppFormattingTests(unittest.TestCase):
         sources = format_sources(documents)
 
         self.assertEqual(len(sources), 1)
+        self.assertIn("[1] doc.pdf", sources[0])
         self.assertIn("doc.pdf", sources[0])
         self.assertIn("Halaman/bagian: 2", sources[0])
         self.assertIn("First answer paragraph with details.", sources[0])
