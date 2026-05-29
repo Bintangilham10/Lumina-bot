@@ -21,14 +21,14 @@ class CliTests(unittest.TestCase):
     def test_argparse_value_helpers_validate_ranges(self) -> None:
         self.assertEqual(positive_int("3"), 3)
         self.assertEqual(non_negative_int("0"), 0)
-        self.assertEqual(temperature_value("1.5"), 1.5)
+        self.assertEqual(temperature_value("0.8"), 0.8)
 
         with self.assertRaises(argparse.ArgumentTypeError):
             positive_int("0")
         with self.assertRaises(argparse.ArgumentTypeError):
             non_negative_int("-1")
         with self.assertRaises(argparse.ArgumentTypeError):
-            temperature_value("2.5")
+            temperature_value("1.5")
 
     def test_build_parser_exposes_retrieval_options(self) -> None:
         args = build_parser().parse_args(
