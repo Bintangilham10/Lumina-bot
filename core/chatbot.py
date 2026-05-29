@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
@@ -63,9 +65,71 @@ def create_qa_chain(
     )
 
 
+def retrieve_documents(qa_chain: RetrievalQA, question: str) -> list[Document]:
+    """Retrieve relevant source documents for a question."""
+    question = _normalize_question(question)
+    retriever = qa_chain.retriever
+    if hasattr(retriever, "invoke"):
+        return list(retriever.invoke(question))
+    return list(retriever.get_relevant_documents(question))
+
+
+def stream_question(
+    qa_chain: RetrievalQA,
+    question: str,
+) -> tuple[Iterator[str], list[Document]]:
+    """Stream an answer while returning the source documents used for context."""
+    question = _normalize_question(question)
+    source_documents = retrieve_documents(qa_chain, question)
+    context = format_documents_context(source_documents)
+    prompt = QA_PROMPT.format(context=context, question=question)
+    llm = _chain_llm(qa_chain)
+
+    return _stream_llm_text(llm, prompt), source_documents
+
+
 def ask_question(qa_chain: RetrievalQA, question: str) -> dict:
     """Ask a question and return the RetrievalQA response."""
+    question = _normalize_question(question)
+    return qa_chain.invoke({"query": question})
+
+
+def format_documents_context(documents: list[Document]) -> str:
+    """Join retrieved documents into the same context shape used by the QA prompt."""
+    return "\n\n".join(document.page_content for document in documents)
+
+
+def _chain_llm(qa_chain: RetrievalQA) -> ChatGoogleGenerativeAI:
+    try:
+        return qa_chain.combine_documents_chain.llm_chain.llm
+    except AttributeError as exc:
+        raise ValueError("QA chain does not expose an LLM for streaming.") from exc
+
+
+def _normalize_question(question: str) -> str:
     question = question.strip()
     if not question:
         raise ValueError("Question cannot be empty.")
-    return qa_chain.invoke({"query": question})
+    return question
+
+
+def _stream_llm_text(llm: ChatGoogleGenerativeAI, prompt: str) -> Iterator[str]:
+    for chunk in llm.stream(prompt):
+        text = _chunk_text(chunk)
+        if text:
+            yield text
+
+
+def _chunk_text(chunk) -> str:
+    content = getattr(chunk, "content", chunk)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict):
+                parts.append(str(part.get("text", "")))
+            else:
+                parts.append(str(part))
+        return "".join(parts)
+    return str(content)
