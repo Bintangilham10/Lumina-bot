@@ -11,6 +11,8 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from utils.sources import format_source_context
+
 
 CHAT_MODEL_ENV_VAR = "GEMINI_CHAT_MODEL"
 DEFAULT_CHAT_MODEL = "gemini-3.5-flash"
@@ -22,7 +24,9 @@ QA_PROMPT = PromptTemplate(
         "Answer in the same language as the user's question. If the question is in Bahasa "
         "Indonesia, answer in Bahasa Indonesia.\n"
         "Use only the provided document context. If the answer is not available in the "
-        "context, say that the information was not found in the document.\n\n"
+        "context, say that the information was not found in the document.\n"
+        "When source labels like [1] or [2] are present, cite the relevant source after "
+        "the sentence that uses it.\n\n"
         "Context:\n{context}\n\n"
         "Question: {question}\n"
         "Answer:"
@@ -91,12 +95,21 @@ def stream_question(
 def ask_question(qa_chain: RetrievalQA, question: str) -> dict:
     """Ask a question and return the RetrievalQA response."""
     question = _normalize_question(question)
-    return qa_chain.invoke({"query": question})
+    source_documents = retrieve_documents(qa_chain, question)
+    context = format_documents_context(source_documents)
+    prompt = QA_PROMPT.format(context=context, question=question)
+    response = _chain_llm(qa_chain).invoke(prompt)
+
+    return {
+        "query": question,
+        "result": _chunk_text(response).strip(),
+        "source_documents": source_documents,
+    }
 
 
 def format_documents_context(documents: list[Document]) -> str:
-    """Join retrieved documents into the same context shape used by the QA prompt."""
-    return "\n\n".join(document.page_content for document in documents)
+    """Join retrieved documents into a numbered citation context."""
+    return format_source_context(documents)
 
 
 def _chain_llm(qa_chain: RetrievalQA) -> ChatGoogleGenerativeAI:
