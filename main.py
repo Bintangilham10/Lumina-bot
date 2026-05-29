@@ -51,8 +51,8 @@ def temperature_value(value: str) -> float:
         parsed = float(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError("must be a number") from exc
-    if not 0 <= parsed <= 2:
-        raise argparse.ArgumentTypeError("must be between 0 and 2")
+    if not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
     return parsed
 
 
@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--temperature",
         type=temperature_value,
         default=0.2,
-        help="Gemini response temperature from 0 to 2. Default: 0.2.",
+        help="Gemini response temperature from 0 to 1. Default: 0.2.",
     )
     parser.add_argument(
         "--hide-sources",
