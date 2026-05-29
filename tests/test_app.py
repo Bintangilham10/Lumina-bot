@@ -6,10 +6,49 @@ import unittest
 
 from langchain_core.documents import Document
 
-from app import format_source_snippet, format_sources
+from app import (
+    PROCESSING_STEPS,
+    format_source_snippet,
+    format_sources,
+    render_processing_step,
+)
+
+
+class FakeStatus:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    def write(self, message: str) -> None:
+        self.messages.append(message)
+
+
+class FakeProgress:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, str]] = []
+
+    def progress(self, value: int, text: str) -> None:
+        self.calls.append((value, text))
 
 
 class AppFormattingTests(unittest.TestCase):
+    def test_processing_steps_are_ordered_and_complete(self) -> None:
+        percentages = [percent for percent, _ in PROCESSING_STEPS]
+
+        self.assertEqual(len(PROCESSING_STEPS), 5)
+        self.assertEqual(percentages, sorted(percentages))
+        self.assertGreater(percentages[0], 0)
+        self.assertLess(percentages[-1], 100)
+
+    def test_render_processing_step_updates_status_and_progress(self) -> None:
+        status = FakeStatus()
+        progress = FakeProgress()
+
+        render_processing_step(status, progress, 1)
+
+        percent, label = PROCESSING_STEPS[1]
+        self.assertEqual(status.messages, [label])
+        self.assertEqual(progress.calls, [(percent, label)])
+
     def test_format_source_snippet_normalizes_and_escapes_text(self) -> None:
         snippet = format_source_snippet("  Alpha\n\n<script>   beta  ")
 
