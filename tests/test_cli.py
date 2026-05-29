@@ -73,6 +73,7 @@ class CliTests(unittest.TestCase):
         sources = format_cli_sources(documents)
 
         self.assertEqual(len(sources), 1)
+        self.assertIn("[1] doc.pdf", sources[0])
         self.assertIn("doc.pdf", sources[0])
         self.assertIn("page/section 2", sources[0])
         self.assertIn("First source paragraph", sources[0])
