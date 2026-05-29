@@ -18,6 +18,13 @@ from utils.helpers import load_environment, safe_collection_name
 
 APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
 SOURCE_SNIPPET_LENGTH = 280
+PROCESSING_STEPS: tuple[tuple[int, str], ...] = (
+    (10, "Menyimpan file sementara..."),
+    (30, "Membaca isi dokumen..."),
+    (55, "Memecah teks menjadi chunk..."),
+    (80, "Membuat embedding dan indeks pencarian..."),
+    (95, "Menyiapkan sesi tanya jawab..."),
+)
 
 
 def configure_page() -> None:
@@ -84,26 +91,42 @@ def uploaded_file_hash(uploaded_file) -> str:
     return hashlib.sha256(uploaded_file.getbuffer()).hexdigest()
 
 
+def render_processing_step(status, progress, step_index: int) -> None:
+    percent, label = PROCESSING_STEPS[step_index]
+    status.write(label)
+    progress.progress(percent, text=label)
+
+
 def process_uploaded_document(uploaded_file) -> None:
     file_hash = uploaded_file_hash(uploaded_file)
     file_id = f"{uploaded_file.name}-{uploaded_file.size}-{file_hash}"
     if st.session_state.processed_file_id == file_id:
         return
 
-    with st.spinner("Memproses dokumen dan membuat indeks pencarian..."):
-        temp_path = save_uploaded_file(uploaded_file)
+    temp_path: Path | None = None
+    with st.status("Memproses dokumen...", expanded=True) as status:
+        progress = st.progress(0, text="Menyiapkan dokumen...")
         try:
+            render_processing_step(status, progress, 0)
+            temp_path = save_uploaded_file(uploaded_file)
+
+            render_processing_step(status, progress, 1)
             loaded = load_document(temp_path)
+
+            render_processing_step(status, progress, 2)
             chunks = split_documents(loaded.documents)
             collection_name = safe_collection_name(
                 ["lumina", Path(uploaded_file.name).stem, file_hash[:16]]
             )
+
+            render_processing_step(status, progress, 3)
             vector_store = create_vector_store(
                 chunks,
                 collection_name=collection_name,
                 persist_directory=None,
             )
 
+            render_processing_step(status, progress, 4)
             st.session_state.qa_chain = create_qa_chain(vector_store)
             st.session_state.document_meta = {
                 "filename": uploaded_file.name,
@@ -113,8 +136,14 @@ def process_uploaded_document(uploaded_file) -> None:
             }
             st.session_state.processed_file_id = file_id
             st.session_state.messages = []
+            progress.progress(100, text="Dokumen siap ditanyakan.")
+            status.update(label="Dokumen selesai diproses.", state="complete", expanded=False)
+        except Exception:
+            status.update(label="Pemrosesan dokumen gagal.", state="error", expanded=True)
+            raise
         finally:
-            temp_path.unlink(missing_ok=True)
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
 
 def render_sidebar() -> None:
