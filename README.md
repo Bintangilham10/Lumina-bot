@@ -7,7 +7,7 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 ## Features
 
 - PDF, DOCX, and EPUB document loading
-- Google Gemini 1.5 Flash for document question answering
+- Google Gemini 3.5 Flash for document question answering
 - Google Generative AI embeddings with local ChromaDB storage
 - Streamlit web UI with Indonesian language support
 - CLI chatbot for terminal workflows
@@ -72,8 +72,8 @@ Then edit `.env`:
 
 ```env
 GOOGLE_API_KEY=your_key_here
-GEMINI_CHAT_MODEL=gemini-1.5-flash
-GEMINI_EMBEDDING_MODEL=models/text-embedding-004
+GEMINI_CHAT_MODEL=gemini-3.5-flash
+GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
 ```
 
 ## Streamlit Usage
@@ -111,7 +111,7 @@ Useful CLI options:
 | `--retrieval-k` | Number of chunks retrieved for each question. Default: `4` |
 | `--chat-model` | Override `GEMINI_CHAT_MODEL` for one run |
 | `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
-| `--temperature` | Response randomness from `0` to `2`. Default: `0.2` |
+| `--temperature` | Response randomness from `0` to `1`. Default: `0.2` |
 | `--hide-sources` | Hide source snippets in terminal answers |
 | `--debug` | Print full tracebacks for troubleshooting |
 
@@ -134,7 +134,7 @@ python -m unittest discover -s tests
 1. `core/loader.py` extracts text and metadata from PDF, DOCX, or EPUB files.
 2. `core/splitter.py` splits text with `RecursiveCharacterTextSplitter` using `chunk_size=1000` and `chunk_overlap=200`.
 3. `core/embedder.py` creates Google Generative AI embeddings and stores vectors in ChromaDB.
-4. `core/chatbot.py` creates a `RetrievalQA` chain with Gemini 1.5 Flash.
+4. `core/chatbot.py` creates a `RetrievalQA` chain with Gemini 3.5 Flash.
 5. `app.py` and `main.py` provide Streamlit and CLI interfaces.
 
 ## Environment Variables
@@ -142,8 +142,8 @@ python -m unittest discover -s tests
 | Name | Description |
 | --- | --- |
 | `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
-| `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-1.5-flash` |
-| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/text-embedding-004` |
+| `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
+| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
 
 ## Notes
 
