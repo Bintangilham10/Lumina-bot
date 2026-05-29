@@ -11,7 +11,9 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Google Generative AI embeddings with local ChromaDB storage
 - Streamlit web UI with Indonesian language support
 - Streaming answers in the web chat
+- Staged upload progress for document processing
 - CLI chatbot for terminal workflows
+- Numbered source citations for retrieved document evidence
 - Document metadata display: filename, pages/sections, and total chunks
 - Source metadata and snippets for retrieved answers
 
