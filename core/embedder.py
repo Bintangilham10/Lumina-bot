@@ -13,7 +13,7 @@ from utils.helpers import ensure_directory
 
 
 EMBEDDING_MODEL_ENV_VAR = "GEMINI_EMBEDDING_MODEL"
-DEFAULT_EMBEDDING_MODEL = "models/text-embedding-004"
+DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-2"
 DEFAULT_PERSIST_DIRECTORY = "chroma_db"
 
 
