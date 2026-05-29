@@ -11,7 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 CHAT_MODEL_ENV_VAR = "GEMINI_CHAT_MODEL"
-DEFAULT_CHAT_MODEL = "gemini-1.5-flash"
+DEFAULT_CHAT_MODEL = "gemini-3.5-flash"
 
 QA_PROMPT = PromptTemplate(
     input_variables=["context", "question"],
@@ -39,8 +39,8 @@ def create_llm(
     temperature: float = 0.2,
 ) -> ChatGoogleGenerativeAI:
     """Create the Gemini chat model."""
-    if not 0 <= temperature <= 2:
-        raise ValueError("temperature must be between 0 and 2.")
+    if not 0 <= temperature <= 1:
+        raise ValueError("temperature must be between 0 and 1.")
     return ChatGoogleGenerativeAI(model=resolve_chat_model(model), temperature=temperature)
 
 
