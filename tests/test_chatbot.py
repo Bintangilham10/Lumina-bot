@@ -6,7 +6,7 @@ import unittest
 
 from langchain_core.documents import Document
 
-from core.chatbot import format_documents_context, stream_question
+from core.chatbot import ask_question, format_documents_context, stream_question
 
 
 class FakeChunk:
@@ -32,6 +32,10 @@ class FakeLlm:
         self.prompts.append(prompt)
         yield FakeChunk("Alpha ")
         yield FakeChunk([{"text": "beta"}])
+
+    def invoke(self, prompt: str) -> FakeChunk:
+        self.prompts.append(prompt)
+        return FakeChunk("Alpha beta [1]")
 
 
 class FakeLlmChain:
@@ -67,7 +71,25 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertEqual(qa_chain.retriever.queries, ["Apa isi dokumen?"])
         self.assertIn("First source paragraph.", llm.prompts[0])
         self.assertIn("Second source paragraph.", llm.prompts[0])
+        self.assertIn("Source [1]", llm.prompts[0])
+        self.assertIn("Source [2]", llm.prompts[0])
         self.assertIn("Question: Apa isi dokumen?", llm.prompts[0])
+
+    def test_ask_question_uses_cited_context(self) -> None:
+        documents = [
+            Document(
+                page_content="First source paragraph.",
+                metadata={"filename": "doc.pdf", "page": 1},
+            )
+        ]
+        llm = FakeLlm()
+        qa_chain = FakeQaChain(documents, llm)
+
+        response = ask_question(qa_chain, "Apa isi dokumen?")
+
+        self.assertEqual(response["result"], "Alpha beta [1]")
+        self.assertEqual(response["source_documents"], documents)
+        self.assertIn("Source [1]: doc.pdf | page/section 1", llm.prompts[0])
 
     def test_stream_question_rejects_empty_question(self) -> None:
         qa_chain = FakeQaChain([], FakeLlm())
@@ -75,15 +97,21 @@ class ChatbotStreamingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Question cannot be empty"):
             stream_question(qa_chain, " ")
 
-    def test_format_documents_context_joins_page_content(self) -> None:
+    def test_format_documents_context_adds_source_labels(self) -> None:
         context = format_documents_context(
             [
-                Document(page_content="Alpha", metadata={}),
-                Document(page_content="Beta", metadata={}),
+                Document(page_content="Alpha", metadata={"filename": "doc.pdf", "page": 1}),
+                Document(page_content="Beta", metadata={"filename": "doc.pdf", "page": 2}),
             ]
         )
 
-        self.assertEqual(context, "Alpha\n\nBeta")
+        self.assertEqual(
+            context,
+            (
+                "Source [1]: doc.pdf | page/section 1\nAlpha\n\n"
+                "Source [2]: doc.pdf | page/section 2\nBeta"
+            ),
+        )
 
 
 if __name__ == "__main__":
