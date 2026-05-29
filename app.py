@@ -14,6 +14,7 @@ from core.embedder import create_vector_store
 from core.loader import load_document
 from core.splitter import split_documents
 from utils.helpers import load_environment, safe_collection_name
+from utils.sources import build_source_references, normalize_source_snippet
 
 
 APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
@@ -54,6 +55,18 @@ def configure_page() -> None:
                 color: #52616f;
                 font-size: 0.88rem;
                 line-height: 1.45;
+                border-left: 3px solid #2f80ed;
+                padding: 0.65rem 0 0.65rem 0.75rem;
+                margin-bottom: 0.7rem;
+                background: #f8fbff;
+            }
+            .lumina-source-title {
+                color: #17212b;
+                font-weight: 700;
+                margin-bottom: 0.2rem;
+            }
+            .lumina-source-snippet {
+                margin-top: 0.45rem;
             }
         </style>
         """,
@@ -227,32 +240,32 @@ def render_chat() -> None:
 
 def format_sources(source_documents) -> list[str]:
     sources: list[str] = []
-    seen: set[tuple[str, str, str]] = set()
+    references = build_source_references(
+        list(source_documents),
+        snippet_length=SOURCE_SNIPPET_LENGTH,
+    )
 
-    for document in source_documents:
-        metadata = document.metadata or {}
-        filename = escape(str(metadata.get("filename", "Dokumen")))
-        page = escape(str(metadata.get("page", "-")))
-        section = escape(str(metadata.get("section", "")))
-        key = (filename, page, section)
-        if key in seen:
-            continue
-        seen.add(key)
-        snippet = format_source_snippet(document.page_content)
-        snippet_html = f"<br><br>{snippet}" if snippet else ""
+    for reference in references:
+        title = escape(f"[{reference.number}] {reference.filename}")
+        page = escape(reference.page)
+        section = escape(reference.section)
+        section_html = f"<br>{section}" if section else ""
+        snippet_html = (
+            f'<div class="lumina-source-snippet">{escape(reference.snippet)}</div>'
+            if reference.snippet
+            else ""
+        )
         sources.append(
-            f'<div class="lumina-source"><strong>{filename}</strong> | '
-            f"Halaman/bagian: {page}<br>{section}{snippet_html}</div>"
+            '<div class="lumina-source">'
+            f'<div class="lumina-source-title">{title}</div>'
+            f"Halaman/bagian: {page}{section_html}{snippet_html}</div>"
         )
 
     return sources
 
 
 def format_source_snippet(text: str, max_length: int = SOURCE_SNIPPET_LENGTH) -> str:
-    snippet = " ".join(str(text).split())
-    if len(snippet) > max_length:
-        snippet = f"{snippet[: max_length - 3].rstrip()}..."
-    return escape(snippet)
+    return escape(normalize_source_snippet(text, max_length))
 
 
 def main() -> None:
