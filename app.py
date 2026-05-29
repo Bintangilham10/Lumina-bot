@@ -9,7 +9,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from core.chatbot import ask_question, create_qa_chain
+from core.chatbot import create_qa_chain, stream_question
 from core.embedder import create_vector_store
 from core.loader import load_document
 from core.splitter import split_documents
@@ -180,10 +180,12 @@ def render_chat() -> None:
 
     with st.chat_message("assistant"):
         with st.spinner("Mencari jawaban di dokumen..."):
-            response = ask_question(st.session_state.qa_chain, question)
-            answer = response.get("result", "").strip()
-            sources = format_sources(response.get("source_documents", []))
-            st.markdown(answer)
+            answer_stream, source_documents = stream_question(
+                st.session_state.qa_chain,
+                question,
+            )
+            sources = format_sources(source_documents)
+            answer = st.write_stream(answer_stream).strip()
             if sources:
                 with st.expander("Sumber jawaban"):
                     for source in sources:
