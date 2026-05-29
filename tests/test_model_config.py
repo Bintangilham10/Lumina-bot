@@ -46,7 +46,7 @@ class ModelConfigTests(unittest.TestCase):
 
     def test_create_llm_rejects_out_of_range_temperature(self) -> None:
         with self.assertRaisesRegex(ValueError, "temperature"):
-            create_llm(temperature=2.1)
+            create_llm(temperature=1.1)
 
 
 if __name__ == "__main__":
