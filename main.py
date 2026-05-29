@@ -18,6 +18,7 @@ from utils.helpers import (
     safe_collection_name,
     supported_extensions_text,
 )
+from utils.sources import build_source_references, normalize_source_snippet
 
 
 SOURCE_SNIPPET_LENGTH = 220
@@ -125,41 +126,31 @@ def prompt_for_document() -> Path:
 
 def format_cli_snippet(text: str, max_length: int = SOURCE_SNIPPET_LENGTH) -> str:
     """Normalize and truncate a source snippet for terminal output."""
-    snippet = " ".join(str(text).split())
-    if max_length <= 0:
-        return ""
-    if len(snippet) > max_length:
-        if max_length <= 3:
-            return snippet[:max_length]
-        snippet = f"{snippet[: max_length - 3].rstrip()}..."
-    return snippet
+    return normalize_source_snippet(text, max_length)
 
 
 def format_cli_sources(source_documents, max_sources: int = 4) -> list[str]:
     """Format retrieved documents as concise terminal source lines."""
     sources: list[str] = []
-    seen: set[tuple[str, str, str]] = set()
+    references = build_source_references(
+        list(source_documents),
+        max_sources=max_sources,
+        snippet_length=SOURCE_SNIPPET_LENGTH,
+    )
 
-    for document in source_documents:
-        metadata = document.metadata or {}
-        fallback_filename = Path(str(metadata.get("source") or "Document")).name
-        filename = str(metadata.get("filename") or fallback_filename or "Document")
-        page = str(metadata.get("page", "-"))
-        section = str(metadata.get("section", "")).strip()
-        key = (filename, page, section)
-        if key in seen:
-            continue
-        seen.add(key)
+    for reference in references:
+        label_parts = [
+            f"[{reference.number}] {reference.filename}",
+            f"page/section {reference.page}",
+        ]
+        if reference.section and reference.section not in {
+            reference.page,
+            f"Page {reference.page}",
+        }:
+            label_parts.append(reference.section)
 
-        label_parts = [filename, f"page/section {page}"]
-        if section and section not in {page, f"Page {page}"}:
-            label_parts.append(section)
-
-        snippet = format_cli_snippet(document.page_content)
         label = " | ".join(label_parts)
-        sources.append(f"{label} - {snippet}" if snippet else label)
-        if len(sources) >= max_sources:
-            break
+        sources.append(f"{label} - {reference.snippet}" if reference.snippet else label)
 
     return sources
 
@@ -225,8 +216,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 if sources:
                     print("Sources:")
-                    for index, source in enumerate(sources, start=1):
-                        print(f"  [{index}] {source}")
+                    for source in sources:
+                        print(f"  {source}")
                     print()
 
     except KeyboardInterrupt:
