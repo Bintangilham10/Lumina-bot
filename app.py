@@ -4,21 +4,32 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 
 import streamlit as st
 
-from core.chatbot import create_qa_chain, stream_question
-from core.embedder import create_vector_store
+from core.chatbot import create_qa_chain, resolve_chat_model, stream_question
+from core.embedder import create_vector_store, resolve_embedding_model
 from core.loader import load_document
-from core.splitter import split_documents
-from utils.helpers import load_environment, safe_collection_name
+from core.splitter import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, split_documents
+from utils.helpers import (
+    DEFAULT_MAX_CHUNKS,
+    DEFAULT_MAX_FILE_SIZE_MB,
+    DEFAULT_MAX_PAGES,
+    document_collection_name,
+    load_environment,
+    validate_document_limits,
+    validate_file_size,
+)
 from utils.sources import build_source_references, normalize_source_snippet
 
 
 APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
 SOURCE_SNIPPET_LENGTH = 280
+DEFAULT_RETRIEVAL_K = 4
+DEFAULT_TEMPERATURE = 0.2
 PROCESSING_STEPS: tuple[tuple[int, str], ...] = (
     (10, "Menyimpan file sementara..."),
     (30, "Membaca isi dokumen..."),
@@ -26,6 +37,34 @@ PROCESSING_STEPS: tuple[tuple[int, str], ...] = (
     (80, "Membuat embedding dan indeks pencarian..."),
     (95, "Menyiapkan sesi tanya jawab..."),
 )
+
+
+@dataclass(frozen=True)
+class AppSettings:
+    chunk_size: int
+    chunk_overlap: int
+    retrieval_k: int
+    chat_model: str
+    embedding_model: str
+    temperature: float
+    max_file_size_mb: int
+    max_pages: int
+    max_chunks: int
+
+    def cache_key(self) -> str:
+        return "|".join(
+            [
+                str(self.chunk_size),
+                str(self.chunk_overlap),
+                str(self.retrieval_k),
+                self.chat_model,
+                self.embedding_model,
+                f"{self.temperature:g}",
+                str(self.max_file_size_mb),
+                str(self.max_pages),
+                str(self.max_chunks),
+            ]
+        )
 
 
 def configure_page() -> None:
@@ -110,9 +149,14 @@ def render_processing_step(status, progress, step_index: int) -> None:
     progress.progress(percent, text=label)
 
 
-def process_uploaded_document(uploaded_file) -> None:
+def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
+    file_size_attr = getattr(uploaded_file, "size", None)
+    file_size = int(
+        file_size_attr if file_size_attr is not None else len(uploaded_file.getbuffer())
+    )
+    validate_file_size(file_size, settings.max_file_size_mb)
     file_hash = uploaded_file_hash(uploaded_file)
-    file_id = f"{uploaded_file.name}-{uploaded_file.size}-{file_hash}"
+    file_id = f"{uploaded_file.name}-{file_size}-{file_hash}-{settings.cache_key()}"
     if st.session_state.processed_file_id == file_id:
         return
 
@@ -127,9 +171,23 @@ def process_uploaded_document(uploaded_file) -> None:
             loaded = load_document(temp_path)
 
             render_processing_step(status, progress, 2)
-            chunks = split_documents(loaded.documents)
-            collection_name = safe_collection_name(
-                ["lumina", Path(uploaded_file.name).stem, file_hash[:16]]
+            chunks = split_documents(
+                loaded.documents,
+                chunk_size=settings.chunk_size,
+                chunk_overlap=settings.chunk_overlap,
+            )
+            validate_document_limits(
+                total_pages=loaded.total_pages,
+                total_chunks=len(chunks),
+                max_pages=settings.max_pages,
+                max_chunks=settings.max_chunks,
+            )
+            collection_name = document_collection_name(
+                Path(uploaded_file.name).stem,
+                file_hash,
+                settings.chunk_size,
+                settings.chunk_overlap,
+                settings.embedding_model or None,
             )
 
             render_processing_step(status, progress, 3)
@@ -137,15 +195,26 @@ def process_uploaded_document(uploaded_file) -> None:
                 chunks,
                 collection_name=collection_name,
                 persist_directory=None,
+                embedding_model=settings.embedding_model or None,
             )
 
             render_processing_step(status, progress, 4)
-            st.session_state.qa_chain = create_qa_chain(vector_store)
+            st.session_state.qa_chain = create_qa_chain(
+                vector_store,
+                k=settings.retrieval_k,
+                model=settings.chat_model or None,
+                temperature=settings.temperature,
+            )
             st.session_state.document_meta = {
                 "filename": uploaded_file.name,
                 "file_type": loaded.file_type,
                 "total_pages": loaded.total_pages,
                 "total_chunks": len(chunks),
+                "chunk_size": settings.chunk_size,
+                "chunk_overlap": settings.chunk_overlap,
+                "retrieval_k": settings.retrieval_k,
+                "chat_model": settings.chat_model,
+                "embedding_model": settings.embedding_model,
             }
             st.session_state.processed_file_id = file_id
             st.session_state.messages = []
@@ -159,9 +228,94 @@ def process_uploaded_document(uploaded_file) -> None:
                 temp_path.unlink(missing_ok=True)
 
 
+def render_settings_controls() -> AppSettings:
+    with st.expander("Pengaturan", expanded=False):
+        chunk_size = int(
+            st.number_input(
+                "Ukuran chunk",
+                min_value=100,
+                max_value=8000,
+                value=DEFAULT_CHUNK_SIZE,
+                step=100,
+            )
+        )
+        chunk_overlap = int(
+            st.number_input(
+                "Overlap chunk",
+                min_value=0,
+                max_value=max(0, chunk_size - 1),
+                value=min(DEFAULT_CHUNK_OVERLAP, max(0, chunk_size - 1)),
+                step=50,
+            )
+        )
+        retrieval_k = int(
+            st.number_input(
+                "Top-k sumber",
+                min_value=1,
+                max_value=20,
+                value=DEFAULT_RETRIEVAL_K,
+                step=1,
+            )
+        )
+        temperature = float(
+            st.slider(
+                "Temperature",
+                min_value=0.0,
+                max_value=1.0,
+                value=DEFAULT_TEMPERATURE,
+                step=0.05,
+            )
+        )
+        chat_model = st.text_input("Model chat", value=resolve_chat_model()).strip()
+        embedding_model = st.text_input(
+            "Model embedding",
+            value=resolve_embedding_model(),
+        ).strip()
+        max_file_size_mb = int(
+            st.number_input(
+                "Batas file (MB)",
+                min_value=0,
+                max_value=500,
+                value=DEFAULT_MAX_FILE_SIZE_MB,
+                step=5,
+            )
+        )
+        max_pages = int(
+            st.number_input(
+                "Batas halaman/bagian",
+                min_value=0,
+                max_value=5000,
+                value=DEFAULT_MAX_PAGES,
+                step=50,
+            )
+        )
+        max_chunks = int(
+            st.number_input(
+                "Batas chunk",
+                min_value=0,
+                max_value=10000,
+                value=DEFAULT_MAX_CHUNKS,
+                step=100,
+            )
+        )
+
+    return AppSettings(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        retrieval_k=retrieval_k,
+        chat_model=chat_model,
+        embedding_model=embedding_model,
+        temperature=temperature,
+        max_file_size_mb=max_file_size_mb,
+        max_pages=max_pages,
+        max_chunks=max_chunks,
+    )
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.header("Dokumen")
+        settings = render_settings_controls()
         uploaded_file = st.file_uploader(
             "Unggah PDF, DOCX, atau EPUB",
             type=["pdf", "docx", "epub"],
@@ -170,7 +324,7 @@ def render_sidebar() -> None:
 
         if uploaded_file is not None:
             try:
-                process_uploaded_document(uploaded_file)
+                process_uploaded_document(uploaded_file, settings)
                 st.success("Dokumen siap ditanyakan.")
             except Exception as exc:
                 reset_document_state()
@@ -178,6 +332,13 @@ def render_sidebar() -> None:
 
         meta = st.session_state.document_meta
         if meta:
+            chunk_size = meta.get("chunk_size", DEFAULT_CHUNK_SIZE)
+            chunk_overlap = meta.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
+            retrieval_k = meta.get("retrieval_k", DEFAULT_RETRIEVAL_K)
+            chat_model = escape(str(meta.get("chat_model", resolve_chat_model())))
+            embedding_model = escape(
+                str(meta.get("embedding_model", resolve_embedding_model()))
+            )
             st.subheader("Metadata")
             st.markdown(
                 f"""
@@ -185,7 +346,11 @@ def render_sidebar() -> None:
                     <strong>Nama file</strong><br>{escape(meta["filename"])}<br><br>
                     <strong>Format</strong><br>{escape(meta["file_type"])}<br><br>
                     <strong>Total halaman/bagian</strong><br>{meta["total_pages"]}<br><br>
-                    <strong>Total chunk</strong><br>{meta["total_chunks"]}
+                    <strong>Total chunk</strong><br>{meta["total_chunks"]}<br><br>
+                    <strong>Chunk / overlap</strong><br>{chunk_size} / {chunk_overlap}<br><br>
+                    <strong>Top-k sumber</strong><br>{retrieval_k}<br><br>
+                    <strong>Model chat</strong><br>{chat_model}<br><br>
+                    <strong>Model embedding</strong><br>{embedding_model}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -221,17 +386,22 @@ def render_chat() -> None:
         st.markdown(question)
 
     with st.chat_message("assistant"):
-        with st.spinner("Mencari jawaban di dokumen..."):
-            answer_stream, source_documents = stream_question(
-                st.session_state.qa_chain,
-                question,
-            )
-            sources = format_sources(source_documents)
-            answer = st.write_stream(answer_stream).strip()
-            if sources:
-                with st.expander("Sumber jawaban"):
-                    for source in sources:
-                        st.markdown(source, unsafe_allow_html=True)
+        try:
+            with st.spinner("Mencari jawaban di dokumen..."):
+                answer_stream, source_documents = stream_question(
+                    st.session_state.qa_chain,
+                    question,
+                )
+                sources = format_sources(source_documents)
+                answer = str(st.write_stream(answer_stream)).strip()
+                if sources:
+                    with st.expander("Sumber jawaban"):
+                        for source in sources:
+                            st.markdown(source, unsafe_allow_html=True)
+        except Exception as exc:
+            sources = []
+            answer = f"Gagal menjawab pertanyaan: {exc}"
+            st.error(answer)
 
     st.session_state.messages.append(
         {"role": "assistant", "content": answer, "sources": sources}
