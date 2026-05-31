@@ -12,6 +12,9 @@ from dotenv import load_dotenv
 
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub"}
+DEFAULT_MAX_FILE_SIZE_MB = 50
+DEFAULT_MAX_PAGES = 500
+DEFAULT_MAX_CHUNKS = 1000
 
 
 def load_environment() -> str:
@@ -49,6 +52,59 @@ def is_supported_file(path: str | Path) -> bool:
 def supported_extensions_text() -> str:
     """Return a human-readable list of supported extensions."""
     return ", ".join(sorted(SUPPORTED_EXTENSIONS))
+
+
+def document_collection_name(
+    filename_stem: str,
+    document_hash: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    embedding_model: str | None = None,
+) -> str:
+    """Build a stable collection name for a document and chunking settings."""
+    return safe_collection_name(
+        [
+            "lumina",
+            document_hash[:16],
+            f"cs{chunk_size}",
+            f"co{chunk_overlap}",
+            embedding_model or "",
+            filename_stem,
+        ]
+    )
+
+
+def validate_file_size(file_size_bytes: int, max_file_size_mb: int) -> None:
+    """Reject files that exceed the configured size guard."""
+    if max_file_size_mb <= 0:
+        return
+
+    max_file_size_bytes = max_file_size_mb * 1024 * 1024
+    if file_size_bytes > max_file_size_bytes:
+        actual_mb = file_size_bytes / (1024 * 1024)
+        raise ValueError(
+            f"Document size {actual_mb:.1f} MB exceeds the configured "
+            f"{max_file_size_mb} MB limit."
+        )
+
+
+def validate_document_limits(
+    total_pages: int,
+    total_chunks: int,
+    max_pages: int = DEFAULT_MAX_PAGES,
+    max_chunks: int = DEFAULT_MAX_CHUNKS,
+) -> None:
+    """Reject documents that are too large to index comfortably."""
+    if max_pages > 0 and total_pages > max_pages:
+        raise ValueError(
+            f"Document has {total_pages} pages/sections, which exceeds the "
+            f"configured limit of {max_pages}."
+        )
+    if max_chunks > 0 and total_chunks > max_chunks:
+        raise ValueError(
+            f"Document produced {total_chunks} chunks, which exceeds the "
+            f"configured limit of {max_chunks}."
+        )
 
 
 def clean_text(text: str) -> str:
