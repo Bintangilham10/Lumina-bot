@@ -9,14 +9,24 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from core.chatbot import ask_question, create_qa_chain
-from core.embedder import create_vector_store
+from core.embedder import (
+    create_vector_store,
+    load_vector_store,
+    resolve_embedding_model,
+    vector_store_document_count,
+)
 from core.loader import load_document
 from core.splitter import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, split_documents
 from utils.helpers import (
+    DEFAULT_MAX_CHUNKS,
+    DEFAULT_MAX_FILE_SIZE_MB,
+    DEFAULT_MAX_PAGES,
+    document_collection_name,
     file_sha256,
     load_environment,
-    safe_collection_name,
     supported_extensions_text,
+    validate_document_limits,
+    validate_file_size,
 )
 from utils.sources import build_source_references, normalize_source_snippet
 
@@ -72,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for local ChromaDB persistence.",
     )
     parser.add_argument(
+        "--rebuild-index",
+        action="store_true",
+        help="Recreate embeddings even when a persisted collection already exists.",
+    )
+    parser.add_argument(
         "--chunk-size",
         type=positive_int,
         default=DEFAULT_CHUNK_SIZE,
@@ -107,6 +122,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--hide-sources",
         action="store_true",
         help="Do not print retrieved source snippets after each answer.",
+    )
+    parser.add_argument(
+        "--max-file-size-mb",
+        type=non_negative_int,
+        default=DEFAULT_MAX_FILE_SIZE_MB,
+        help=(
+            "Maximum document file size in MB before indexing. "
+            f"Default: {DEFAULT_MAX_FILE_SIZE_MB}. Use 0 to disable."
+        ),
+    )
+    parser.add_argument(
+        "--max-pages",
+        type=non_negative_int,
+        default=DEFAULT_MAX_PAGES,
+        help=(
+            "Maximum pages/sections before indexing. "
+            f"Default: {DEFAULT_MAX_PAGES}. Use 0 to disable."
+        ),
+    )
+    parser.add_argument(
+        "--max-chunks",
+        type=non_negative_int,
+        default=DEFAULT_MAX_CHUNKS,
+        help=(
+            "Maximum chunks before embedding. "
+            f"Default: {DEFAULT_MAX_CHUNKS}. Use 0 to disable."
+        ),
     )
     parser.add_argument(
         "--debug",
@@ -164,6 +206,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         load_environment()
         document_path = Path(args.document) if args.document else prompt_for_document()
+        persist_dir = args.persist_dir or None
+        embedding_model = resolve_embedding_model(args.embedding_model)
+        input_path = document_path.expanduser()
+        if input_path.exists() and input_path.is_file():
+            validate_file_size(input_path.stat().st_size, args.max_file_size_mb)
 
         print("Loading document...")
         loaded = load_document(document_path)
@@ -174,18 +221,54 @@ def main(argv: Sequence[str] | None = None) -> int:
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
         )
+        validate_document_limits(
+            total_pages=loaded.total_pages,
+            total_chunks=len(chunks),
+            max_pages=args.max_pages,
+            max_chunks=args.max_chunks,
+        )
         document_hash = file_sha256(loaded.file_path)
-        collection_name = safe_collection_name(
-            ["lumina", loaded.file_path.stem, document_hash[:16]]
+        collection_name = document_collection_name(
+            loaded.file_path.stem,
+            document_hash,
+            args.chunk_size,
+            args.chunk_overlap,
+            embedding_model,
         )
 
-        print(f"Creating embeddings for {len(chunks)} chunks...")
-        vector_store = create_vector_store(
-            chunks=chunks,
-            collection_name=collection_name,
-            persist_directory=args.persist_dir,
-            embedding_model=args.embedding_model,
-        )
+        vector_store = None
+        if persist_dir is not None and not args.rebuild_index:
+            existing_store = load_vector_store(
+                collection_name=collection_name,
+                persist_directory=persist_dir,
+                embedding_model=embedding_model,
+            )
+            existing_count = vector_store_document_count(existing_store)
+            if existing_count > 0:
+                print(
+                    f"Using existing embeddings for {existing_count} chunks "
+                    f"from '{persist_dir}'."
+                )
+                vector_store = existing_store
+
+        if vector_store is None:
+            if persist_dir is not None and args.rebuild_index:
+                existing_store = load_vector_store(
+                    collection_name=collection_name,
+                    persist_directory=persist_dir,
+                    embedding_model=embedding_model,
+                )
+                if vector_store_document_count(existing_store) > 0:
+                    print("Rebuilding existing vector collection...")
+                    existing_store.delete_collection()
+
+            print(f"Creating embeddings for {len(chunks)} chunks...")
+            vector_store = create_vector_store(
+                chunks=chunks,
+                collection_name=collection_name,
+                persist_directory=persist_dir,
+                embedding_model=embedding_model,
+            )
         qa_chain = create_qa_chain(
             vector_store,
             k=args.retrieval_k,
