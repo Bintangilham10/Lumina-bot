@@ -51,6 +51,16 @@ def create_vector_store(
     )
 
 
+def vector_store_document_count(vector_store: Chroma) -> int:
+    """Return the number of stored vectors in a Chroma collection."""
+    collection = getattr(vector_store, "_collection", None)
+    if collection is not None and hasattr(collection, "count"):
+        return int(collection.count())
+
+    records = vector_store.get(include=[])
+    return len(records.get("ids", []))
+
+
 def load_vector_store(
     collection_name: str,
     persist_directory: str | Path = DEFAULT_PERSIST_DIRECTORY,
