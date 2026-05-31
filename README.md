@@ -12,7 +12,9 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Streamlit web UI with Indonesian language support
 - Streaming answers in the web chat
 - Staged upload progress for document processing
+- Web controls for chunking, retrieval, model, temperature, and indexing limits
 - CLI chatbot for terminal workflows
+- CLI reuse of persisted Chroma collections for unchanged documents and chunking settings
 - Numbered source citations for retrieved document evidence
 - Document metadata display: filename, pages/sections, and total chunks
 - Source metadata and snippets for retrieved answers
@@ -29,15 +31,27 @@ lumina-doc/
 ├── app.py
 ├── core/
 │   ├── __init__.py
-│   ├── loader.py
-│   ├── splitter.py
+│   ├── chatbot.py
 │   ├── embedder.py
-│   └── chatbot.py
+│   ├── loader.py
+│   └── splitter.py
+├── tests/
+│   ├── test_app.py
+│   ├── test_chatbot.py
+│   ├── test_cli.py
+│   ├── test_embedder.py
+│   ├── test_helpers.py
+│   ├── test_live_smoke.py
+│   ├── test_loader.py
+│   ├── test_model_config.py
+│   ├── test_sources.py
+│   └── test_splitter.py
 ├── data/
 │   └── .gitkeep
 └── utils/
     ├── __init__.py
-    └── helpers.py
+    ├── helpers.py
+    └── sources.py
 ```
 
 ## Requirements
@@ -89,6 +103,8 @@ streamlit run app.py
 
 Open the local Streamlit URL, upload a PDF, DOCX, or EPUB file from the sidebar, then ask questions in Bahasa Indonesia or English.
 
+The sidebar settings let you tune chunk size, chunk overlap, retrieval `top-k`, Gemini model names, response temperature, and document indexing limits before the file is processed.
+
 ## CLI Usage
 
 Run with a document path:
@@ -112,10 +128,15 @@ Useful CLI options:
 | `--chunk-size` | Maximum characters per chunk. Default: `1000` |
 | `--chunk-overlap` | Characters shared between adjacent chunks. Default: `200` |
 | `--retrieval-k` | Number of chunks retrieved for each question. Default: `4` |
+| `--persist-dir` | Directory for persisted ChromaDB collections. Default: `chroma_db` |
+| `--rebuild-index` | Recreate embeddings even if a matching persisted collection already exists |
 | `--chat-model` | Override `GEMINI_CHAT_MODEL` for one run |
 | `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
 | `--temperature` | Response randomness from `0` to `1`. Default: `0.2` |
 | `--hide-sources` | Hide source snippets in terminal answers |
+| `--max-file-size-mb` | Reject files larger than this before indexing. Default: `50`; use `0` to disable |
+| `--max-pages` | Reject documents with more pages/sections than this. Default: `500`; use `0` to disable |
+| `--max-chunks` | Reject documents that produce more chunks than this. Default: `1000`; use `0` to disable |
 | `--debug` | Print full tracebacks for troubleshooting |
 
 Example with retrieval tuning:
@@ -130,6 +151,18 @@ Run the test suite:
 
 ```bash
 python -m unittest discover -s tests
+```
+
+Optional live Gemini smoke test:
+
+```bash
+LUMINA_LIVE_TEST=1 GOOGLE_API_KEY=your_key_here python -m unittest tests.test_live_smoke
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unittest tests.test_live_smoke
 ```
 
 ## How It Works
@@ -150,7 +183,9 @@ python -m unittest discover -s tests
 
 ## Notes
 
-- ChromaDB data is stored in `chroma_db/` and ignored by Git.
-- CLI vector collections include the document name and file hash to avoid reusing a collection for different file contents.
+- CLI ChromaDB data is stored in `chroma_db/` and ignored by Git.
+- Streamlit uploads use a temporary in-memory Chroma collection for each processed document/settings combination.
+- CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters.
+- The CLI reuses a persisted collection when it already contains vectors. Use `--rebuild-index` to force a fresh embedding pass.
 - Uploaded files are processed locally.
 - Answers are constrained to the uploaded document context. If the answer is not present, the assistant should say the information was not found in the document.
