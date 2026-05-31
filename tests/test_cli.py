@@ -43,6 +43,13 @@ class CliTests(unittest.TestCase):
                 "--temperature",
                 "0",
                 "--hide-sources",
+                "--rebuild-index",
+                "--max-file-size-mb",
+                "25",
+                "--max-pages",
+                "250",
+                "--max-chunks",
+                "750",
             ]
         )
 
@@ -52,6 +59,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.retrieval_k, 5)
         self.assertEqual(args.temperature, 0)
         self.assertTrue(args.hide_sources)
+        self.assertTrue(args.rebuild_index)
+        self.assertEqual(args.max_file_size_mb, 25)
+        self.assertEqual(args.max_pages, 250)
+        self.assertEqual(args.max_chunks, 750)
 
     def test_format_cli_snippet_normalizes_and_truncates_text(self) -> None:
         snippet = format_cli_snippet("  Alpha\n\n beta   gamma  ", max_length=14)
