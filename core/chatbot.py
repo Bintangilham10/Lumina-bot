@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from collections.abc import Iterator
 
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from utils.sources import format_source_context
@@ -34,6 +34,14 @@ QA_PROMPT = PromptTemplate(
 )
 
 
+@dataclass
+class DocumentQaChain:
+    """Small retrieval QA container independent of deprecated LangChain chains."""
+
+    retriever: object
+    llm: ChatGoogleGenerativeAI
+
+
 def resolve_chat_model(model: str | None = None) -> str:
     """Resolve the chat model from an explicit value, environment, or default."""
     resolved_model = model or os.getenv(CHAT_MODEL_ENV_VAR) or DEFAULT_CHAT_MODEL
@@ -55,21 +63,18 @@ def create_qa_chain(
     k: int = 4,
     model: str | None = None,
     temperature: float = 0.2,
-) -> RetrievalQA:
-    """Create a RetrievalQA chain from a Chroma vector store."""
+) -> DocumentQaChain:
+    """Create a retrieval QA flow from a Chroma vector store."""
     if k <= 0:
         raise ValueError("retrieval k must be greater than 0.")
     retriever = vector_store.as_retriever(search_kwargs={"k": k})
-    return RetrievalQA.from_chain_type(
-        llm=create_llm(model=model, temperature=temperature),
-        chain_type="stuff",
+    return DocumentQaChain(
         retriever=retriever,
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": QA_PROMPT},
+        llm=create_llm(model=model, temperature=temperature),
     )
 
 
-def retrieve_documents(qa_chain: RetrievalQA, question: str) -> list[Document]:
+def retrieve_documents(qa_chain: DocumentQaChain, question: str) -> list[Document]:
     """Retrieve relevant source documents for a question."""
     question = _normalize_question(question)
     retriever = qa_chain.retriever
@@ -79,7 +84,7 @@ def retrieve_documents(qa_chain: RetrievalQA, question: str) -> list[Document]:
 
 
 def stream_question(
-    qa_chain: RetrievalQA,
+    qa_chain: DocumentQaChain,
     question: str,
 ) -> tuple[Iterator[str], list[Document]]:
     """Stream an answer while returning the source documents used for context."""
@@ -92,8 +97,8 @@ def stream_question(
     return _stream_llm_text(llm, prompt), source_documents
 
 
-def ask_question(qa_chain: RetrievalQA, question: str) -> dict:
-    """Ask a question and return the RetrievalQA response."""
+def ask_question(qa_chain: DocumentQaChain, question: str) -> dict:
+    """Ask a question and return the retrieval QA response."""
     question = _normalize_question(question)
     source_documents = retrieve_documents(qa_chain, question)
     context = format_documents_context(source_documents)
@@ -112,7 +117,9 @@ def format_documents_context(documents: list[Document]) -> str:
     return format_source_context(documents)
 
 
-def _chain_llm(qa_chain: RetrievalQA) -> ChatGoogleGenerativeAI:
+def _chain_llm(qa_chain: DocumentQaChain) -> ChatGoogleGenerativeAI:
+    if hasattr(qa_chain, "llm"):
+        return qa_chain.llm
     try:
         return qa_chain.combine_documents_chain.llm_chain.llm
     except AttributeError as exc:
