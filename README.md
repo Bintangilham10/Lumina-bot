@@ -200,7 +200,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, and `pip-audit` for de
 1. `core/loader.py` extracts text and metadata from PDF, DOCX, or EPUB files.
 2. `core/splitter.py` splits text with `RecursiveCharacterTextSplitter` using `chunk_size=1000` and `chunk_overlap=200`.
 3. `core/embedder.py` creates Google Generative AI embeddings and stores vectors in ChromaDB.
-4. `core/chatbot.py` creates a `RetrievalQA` chain with Gemini 3.5 Flash.
+4. `core/chatbot.py` creates a lightweight retrieval QA flow with Gemini 3.5 Flash.
 5. `app.py` and `main.py` provide Streamlit and CLI interfaces.
 
 ## Environment Variables
