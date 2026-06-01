@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 import tempfile
 from dataclasses import dataclass
 from html import escape
@@ -14,6 +15,7 @@ from core.chatbot import create_qa_chain, resolve_chat_model, stream_question
 from core.embedder import create_vector_store, resolve_embedding_model
 from core.loader import load_document
 from core.splitter import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, split_documents
+from utils.audit import audit_event
 from utils.helpers import (
     DEFAULT_MAX_CHUNKS,
     DEFAULT_MAX_FILE_SIZE_MB,
@@ -22,6 +24,18 @@ from utils.helpers import (
     load_environment,
     validate_document_limits,
     validate_file_size,
+)
+from utils.security import (
+    ALLOWED_CHAT_MODELS_ENV_VAR,
+    ALLOWED_EMBEDDING_MODELS_ENV_VAR,
+    DEFAULT_MAX_QUESTIONS_PER_MINUTE,
+    MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
+    RATE_LIMIT_WINDOW_SECONDS,
+    check_rate_limit,
+    configured_model_options,
+    configured_password,
+    int_from_env,
+    verify_password,
 )
 from utils.sources import build_source_references, normalize_source_snippet
 
@@ -115,10 +129,12 @@ def configure_page() -> None:
 
 def initialize_state() -> None:
     defaults = {
+        "authenticated": False,
         "messages": [],
         "qa_chain": None,
         "document_meta": None,
         "processed_file_id": None,
+        "question_timestamps": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -216,11 +232,26 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 "chat_model": settings.chat_model,
                 "embedding_model": settings.embedding_model,
             }
+            audit_event(
+                "document_processed",
+                filename=uploaded_file.name,
+                file_type=loaded.file_type,
+                total_pages=loaded.total_pages,
+                total_chunks=len(chunks),
+                chunk_size=settings.chunk_size,
+                chunk_overlap=settings.chunk_overlap,
+                retrieval_k=settings.retrieval_k,
+            )
             st.session_state.processed_file_id = file_id
             st.session_state.messages = []
             progress.progress(100, text="Dokumen siap ditanyakan.")
             status.update(label="Dokumen selesai diproses.", state="complete", expanded=False)
-        except Exception:
+        except Exception as exc:
+            audit_event(
+                "document_processing_error",
+                filename=uploaded_file.name,
+                error_type=type(exc).__name__,
+            )
             status.update(label="Pemrosesan dokumen gagal.", state="error", expanded=True)
             raise
         finally:
@@ -266,10 +297,23 @@ def render_settings_controls() -> AppSettings:
                 step=0.05,
             )
         )
-        chat_model = st.text_input("Model chat", value=resolve_chat_model()).strip()
-        embedding_model = st.text_input(
+        chat_model_default = resolve_chat_model()
+        chat_model = st.selectbox(
+            "Model chat",
+            options=configured_model_options(
+                ALLOWED_CHAT_MODELS_ENV_VAR,
+                chat_model_default,
+            ),
+            index=0,
+        ).strip()
+        embedding_model_default = resolve_embedding_model()
+        embedding_model = st.selectbox(
             "Model embedding",
-            value=resolve_embedding_model(),
+            options=configured_model_options(
+                ALLOWED_EMBEDDING_MODELS_ENV_VAR,
+                embedding_model_default,
+            ),
+            index=0,
         ).strip()
         max_file_size_mb = int(
             st.number_input(
@@ -310,6 +354,45 @@ def render_settings_controls() -> AppSettings:
         max_pages=max_pages,
         max_chunks=max_chunks,
     )
+
+
+def authenticate_session() -> bool:
+    expected_password = configured_password()
+    if not expected_password:
+        return True
+    if st.session_state.authenticated:
+        return True
+
+    st.title(APP_TITLE)
+    password = st.text_input("Password", type="password")
+    if st.button("Masuk", use_container_width=True):
+        if verify_password(password, expected_password):
+            st.session_state.authenticated = True
+            audit_event("auth_success")
+            st.rerun()
+        audit_event("auth_failure")
+        st.error("Password tidak cocok.")
+    return False
+
+
+def rate_limit_question() -> bool:
+    max_questions = int_from_env(
+        MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
+        DEFAULT_MAX_QUESTIONS_PER_MINUTE,
+    )
+    allowed, timestamps, retry_after = check_rate_limit(
+        list(st.session_state.question_timestamps),
+        time.time(),
+        max_questions,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    st.session_state.question_timestamps = timestamps
+    if allowed:
+        return True
+
+    audit_event("question_rate_limited", retry_after_seconds=retry_after)
+    st.warning(f"Terlalu banyak pertanyaan. Coba lagi dalam {retry_after} detik.")
+    return False
 
 
 def render_sidebar() -> None:
@@ -380,6 +463,8 @@ def render_chat() -> None:
     question = st.chat_input("Tulis pertanyaan tentang dokumen...")
     if not question:
         return
+    if not rate_limit_question():
+        return
 
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
@@ -398,9 +483,20 @@ def render_chat() -> None:
                     with st.expander("Sumber jawaban"):
                         for source in sources:
                             st.markdown(source, unsafe_allow_html=True)
+                audit_event(
+                    "question_answered",
+                    question_length=len(question),
+                    answer_length=len(answer),
+                    source_count=len(sources),
+                )
         except Exception as exc:
             sources = []
             answer = f"Gagal menjawab pertanyaan: {exc}"
+            audit_event(
+                "question_error",
+                question_length=len(question),
+                error_type=type(exc).__name__,
+            )
             st.error(answer)
 
     st.session_state.messages.append(
@@ -442,6 +538,8 @@ def main() -> None:
     configure_page()
     initialize_state()
 
+    if not authenticate_session():
+        st.stop()
     try:
         load_environment()
     except Exception as exc:
