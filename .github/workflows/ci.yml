@@ -31,4 +31,5 @@ jobs:
       - name: Audit Python dependencies
         run: |
           python -m pip install --upgrade pip pip-audit
-          python -m pip_audit -r requirements.txt
+          # ChromaDB has no fixed release for this advisory yet; keep auditing all other CVEs.
+          python -m pip_audit -r requirements.txt --ignore-vuln CVE-2026-45829
