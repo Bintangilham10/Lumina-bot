@@ -13,8 +13,11 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Streaming answers in the web chat
 - Staged upload progress for document processing
 - Web controls for chunking, retrieval, model, temperature, and indexing limits
+- Optional Streamlit password gate, per-session question rate limiting, and audit logging
+- File signature checks for PDF, DOCX, and EPUB uploads
 - CLI chatbot for terminal workflows
 - CLI reuse of persisted Chroma collections for unchanged documents and chunking settings
+- Dockerfile and CI workflow with unit tests and dependency audit
 - Numbered source citations for retrieved document evidence
 - Document metadata display: filename, pages/sections, and total chunks
 - Source metadata and snippets for retrieved answers
@@ -24,7 +27,12 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 ```text
 lumina-doc/
 ├── .env.example
+├── .dockerignore
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── .gitignore
+├── Dockerfile
 ├── README.md
 ├── requirements.txt
 ├── main.py
@@ -37,6 +45,7 @@ lumina-doc/
 │   └── splitter.py
 ├── tests/
 │   ├── test_app.py
+│   ├── test_audit.py
 │   ├── test_chatbot.py
 │   ├── test_cli.py
 │   ├── test_embedder.py
@@ -44,13 +53,16 @@ lumina-doc/
 │   ├── test_live_smoke.py
 │   ├── test_loader.py
 │   ├── test_model_config.py
+│   ├── test_security.py
 │   ├── test_sources.py
 │   └── test_splitter.py
 ├── data/
 │   └── .gitkeep
 └── utils/
     ├── __init__.py
+    ├── audit.py
     ├── helpers.py
+    ├── security.py
     └── sources.py
 ```
 
@@ -91,6 +103,11 @@ Then edit `.env`:
 GOOGLE_API_KEY=your_key_here
 GEMINI_CHAT_MODEL=gemini-3.5-flash
 GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
+LUMINA_APP_PASSWORD=
+LUMINA_MAX_QUESTIONS_PER_MINUTE=20
+LUMINA_AUDIT_LOG_PATH=
+LUMINA_ALLOWED_CHAT_MODELS=gemini-3.5-flash
+LUMINA_ALLOWED_EMBEDDING_MODELS=models/gemini-embedding-2
 ```
 
 ## Streamlit Usage
@@ -165,6 +182,19 @@ On Windows PowerShell:
 $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unittest tests.test_live_smoke
 ```
 
+## Production Deployment
+
+Build and run with Docker:
+
+```bash
+docker build -t lumina-doc .
+docker run --rm -p 8501:8501 --env-file .env lumina-doc
+```
+
+For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, rate-limit events, and answer/error events without storing document text or raw questions.
+
+The GitHub Actions workflow runs unit tests, `pip check`, and `pip-audit` for dependency vulnerability checks on every push and pull request.
+
 ## How It Works
 
 1. `core/loader.py` extracts text and metadata from PDF, DOCX, or EPUB files.
@@ -180,6 +210,11 @@ $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unitte
 | `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
 | `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
 | `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
+| `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
+| `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
+| `LUMINA_AUDIT_LOG_PATH` | Optional JSONL audit log path. Leave blank to disable audit logging |
+| `LUMINA_ALLOWED_CHAT_MODELS` | Comma-separated chat model allowlist for the Streamlit selector |
+| `LUMINA_ALLOWED_EMBEDDING_MODELS` | Comma-separated embedding model allowlist for the Streamlit selector |
 
 ## Notes
 
@@ -188,4 +223,5 @@ $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unitte
 - CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters.
 - The CLI reuses a persisted collection when it already contains vectors. Use `--rebuild-index` to force a fresh embedding pass.
 - Uploaded files are processed locally.
+- Embeddings and answers are generated through Google Gemini APIs, so document chunks are sent to the configured external model provider.
 - Answers are constrained to the uploaded document context. If the answer is not present, the assistant should say the information was not found in the document.
