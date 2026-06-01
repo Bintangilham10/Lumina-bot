@@ -37,6 +37,30 @@ class LoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not a file"):
                 load_document(path)
 
+    def test_load_document_rejects_spoofed_pdf_content(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "sample.pdf"
+            path.write_text("not actually a pdf", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "PDF"):
+                load_document(path)
+
+    def test_load_document_rejects_spoofed_docx_content(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "sample.docx"
+            path.write_text("not actually a docx", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "DOCX"):
+                load_document(path)
+
+    def test_load_document_rejects_spoofed_epub_content(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "sample.epub"
+            path.write_text("not actually an epub", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "EPUB"):
+                load_document(path)
+
     def test_load_document_reads_pdf_text(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
             path = Path(temp_dir) / "sample.pdf"
