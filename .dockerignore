@@ -1,0 +1,14 @@
+.git
+.github
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+chroma_db/
+data/*
+!data/.gitkeep
+logs/
+venv/
+.venv/
