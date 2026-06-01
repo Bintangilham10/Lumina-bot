@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import zipfile
 
 import docx
 import fitz
@@ -39,6 +40,7 @@ def load_document(file_path: str | Path) -> LoadedDocument:
         )
 
     suffix = path.suffix.lower()
+    _validate_file_signature(path, suffix)
     if suffix == ".pdf":
         documents = _load_pdf(path)
     elif suffix == ".docx":
@@ -64,6 +66,43 @@ def _base_metadata(path: Path, file_type: str) -> dict[str, str]:
         "filename": path.name,
         "file_type": file_type,
     }
+
+
+def _validate_file_signature(path: Path, suffix: str) -> None:
+    """Reject common extension spoofing before handing files to parsers."""
+    if suffix == ".pdf":
+        with path.open("rb") as file:
+            header = file.read(5)
+        if header != b"%PDF-":
+            raise ValueError("File content does not look like a PDF document.")
+        return
+
+    if suffix == ".docx":
+        _validate_zip_members(path, {"[Content_Types].xml", "word/document.xml"}, "DOCX")
+        return
+
+    _validate_epub_signature(path)
+
+
+def _validate_zip_members(path: Path, required_members: set[str], file_type: str) -> None:
+    if not zipfile.is_zipfile(path):
+        raise ValueError(f"File content does not look like a {file_type} document.")
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+    if not required_members.issubset(names):
+        raise ValueError(f"File content does not look like a {file_type} document.")
+
+
+def _validate_epub_signature(path: Path) -> None:
+    if not zipfile.is_zipfile(path):
+        raise ValueError("File content does not look like an EPUB document.")
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+        if "mimetype" not in names:
+            raise ValueError("File content does not look like an EPUB document.")
+        mimetype = archive.read("mimetype").decode("utf-8", errors="ignore").strip()
+    if mimetype != "application/epub+zip":
+        raise ValueError("File content does not look like an EPUB document.")
 
 
 def _load_pdf(path: Path) -> list[Document]:
