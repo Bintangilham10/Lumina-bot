@@ -17,7 +17,7 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - File signature checks for PDF, DOCX, and EPUB uploads
 - CLI chatbot for terminal workflows
 - CLI reuse of persisted Chroma collections for unchanged documents and chunking settings
-- Dockerfile and CI workflow with unit tests and dependency audit
+- Dockerfile and CI workflow with unit tests, dependency audit, and image build checks
 - Numbered source citations for retrieved document evidence
 - Document metadata display: filename, pages/sections, and total chunks
 - Source metadata and snippets for retrieved answers
@@ -29,8 +29,10 @@ lumina-doc/
 ├── .env.example
 ├── .dockerignore
 ├── .github/
+│   ├── dependabot.yml
 │   └── workflows/
-│       └── ci.yml
+│       ├── ci.yml
+│       └── live-smoke.yml
 ├── .gitignore
 ├── Dockerfile
 ├── README.md
@@ -182,6 +184,8 @@ On Windows PowerShell:
 $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unittest tests.test_live_smoke
 ```
 
+To run the live smoke test in GitHub Actions, add a repository secret named `GOOGLE_API_KEY`, then run the **Live Gemini Smoke** workflow manually from the Actions tab.
+
 ## Production Deployment
 
 Build and run with Docker:
@@ -193,7 +197,7 @@ docker run --rm -p 8501:8501 --env-file .env lumina-doc
 
 For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, rate-limit events, and answer/error events without storing document text or raw questions.
 
-The GitHub Actions workflow runs unit tests, `pip check`, and `pip-audit` for dependency vulnerability checks on every push and pull request.
+The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Docker image build on every push and pull request. Dependabot checks Python packages and GitHub Actions weekly.
 
 ## How It Works
 
