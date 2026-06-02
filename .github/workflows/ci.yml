@@ -33,3 +33,10 @@ jobs:
           python -m pip install --upgrade pip pip-audit
           # ChromaDB has no fixed release for this advisory yet; keep auditing all other CVEs.
           python -m pip_audit -r requirements.txt --ignore-vuln CVE-2026-45829
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t lumina-doc:ci .
