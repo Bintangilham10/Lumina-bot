@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from utils.security import (
+    check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
     int_from_env,
@@ -61,6 +62,35 @@ class SecurityHelperTests(unittest.TestCase):
 
         self.assertTrue(allowed)
         self.assertEqual(timestamps, [])
+        self.assertEqual(retry_after, 0)
+
+    def test_check_global_rate_limit_blocks_across_calls(self) -> None:
+        with patch("utils.security._global_question_timestamps", []):
+            allowed, retry_after = check_global_rate_limit(
+                now=1.0,
+                max_events=1,
+                window_seconds=60,
+            )
+            self.assertTrue(allowed)
+            self.assertEqual(retry_after, 0)
+
+            allowed, retry_after = check_global_rate_limit(
+                now=2.0,
+                max_events=1,
+                window_seconds=60,
+            )
+            self.assertFalse(allowed)
+            self.assertEqual(retry_after, 59)
+
+    def test_check_global_rate_limit_allows_when_disabled(self) -> None:
+        with patch("utils.security._global_question_timestamps", [1.0, 2.0]):
+            allowed, retry_after = check_global_rate_limit(
+                now=3.0,
+                max_events=0,
+                window_seconds=60,
+            )
+
+        self.assertTrue(allowed)
         self.assertEqual(retry_after, 0)
 
 
