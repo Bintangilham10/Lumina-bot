@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -40,6 +40,9 @@ class DocumentQaChain:
 
     retriever: object
     llm: ChatGoogleGenerativeAI
+    vector_store: Chroma | None = None
+    retrieval_k: int = 4
+    min_relevance_score: float | None = None
 
 
 def resolve_chat_model(model: str | None = None) -> str:
@@ -63,20 +66,29 @@ def create_qa_chain(
     k: int = 4,
     model: str | None = None,
     temperature: float = 0.2,
+    min_relevance_score: float | None = None,
 ) -> DocumentQaChain:
     """Create a retrieval QA flow from a Chroma vector store."""
     if k <= 0:
         raise ValueError("retrieval k must be greater than 0.")
+    min_relevance_score = _normalize_min_relevance_score(min_relevance_score)
     retriever = vector_store.as_retriever(search_kwargs={"k": k})
     return DocumentQaChain(
         retriever=retriever,
         llm=create_llm(model=model, temperature=temperature),
+        vector_store=vector_store,
+        retrieval_k=k,
+        min_relevance_score=min_relevance_score,
     )
 
 
 def retrieve_documents(qa_chain: DocumentQaChain, question: str) -> list[Document]:
     """Retrieve relevant source documents for a question."""
     question = _normalize_question(question)
+    scored_documents = _retrieve_scored_documents(qa_chain, question)
+    if scored_documents is not None:
+        return scored_documents
+
     retriever = qa_chain.retriever
     if hasattr(retriever, "invoke"):
         return list(retriever.invoke(question))
@@ -90,6 +102,9 @@ def stream_question(
     """Stream an answer while returning the source documents used for context."""
     question = _normalize_question(question)
     source_documents = retrieve_documents(qa_chain, question)
+    if not source_documents:
+        return iter([_not_found_answer(question)]), source_documents
+
     context = format_documents_context(source_documents)
     prompt = QA_PROMPT.format(context=context, question=question)
     llm = _chain_llm(qa_chain)
@@ -101,6 +116,13 @@ def ask_question(qa_chain: DocumentQaChain, question: str) -> dict:
     """Ask a question and return the retrieval QA response."""
     question = _normalize_question(question)
     source_documents = retrieve_documents(qa_chain, question)
+    if not source_documents:
+        return {
+            "query": question,
+            "result": _not_found_answer(question),
+            "source_documents": source_documents,
+        }
+
     context = format_documents_context(source_documents)
     prompt = QA_PROMPT.format(context=context, question=question)
     response = _chain_llm(qa_chain).invoke(prompt)
@@ -131,6 +153,74 @@ def _normalize_question(question: str) -> str:
     if not question:
         raise ValueError("Question cannot be empty.")
     return question
+
+
+def _normalize_min_relevance_score(score: float | None) -> float | None:
+    if score is None:
+        return None
+    if not 0 <= score <= 1:
+        raise ValueError("min_relevance_score must be between 0 and 1.")
+    return score if score > 0 else None
+
+
+def _retrieve_scored_documents(
+    qa_chain: DocumentQaChain,
+    question: str,
+) -> list[Document] | None:
+    min_relevance_score = getattr(qa_chain, "min_relevance_score", None)
+    vector_store = getattr(qa_chain, "vector_store", None)
+    if min_relevance_score is None or vector_store is None:
+        return None
+    if not hasattr(vector_store, "similarity_search_with_relevance_scores"):
+        return None
+
+    results = vector_store.similarity_search_with_relevance_scores(
+        question,
+        k=getattr(qa_chain, "retrieval_k", 4),
+    )
+    documents: list[Document] = []
+    for document, score in results:
+        relevance_score = float(score)
+        if relevance_score < min_relevance_score:
+            continue
+        documents.append(
+            Document(
+                page_content=document.page_content,
+                metadata={
+                    **(document.metadata or {}),
+                    "relevance_score": relevance_score,
+                },
+            )
+        )
+    return documents
+
+
+def _not_found_answer(question: str) -> str:
+    if _looks_indonesian(question):
+        return "Informasi tersebut tidak ditemukan di dokumen."
+    return "The information was not found in the document."
+
+
+def _looks_indonesian(text: str) -> bool:
+    words = {word.strip(".,?!:;()[]{}\"'").lower() for word in text.split()}
+    indonesian_markers = {
+        "apa",
+        "siapa",
+        "kapan",
+        "dimana",
+        "mana",
+        "mengapa",
+        "kenapa",
+        "bagaimana",
+        "berapa",
+        "jelaskan",
+        "sebutkan",
+        "dokumen",
+        "dalam",
+        "adalah",
+        "yang",
+    }
+    return bool(words & indonesian_markers)
 
 
 def _stream_llm_text(llm: ChatGoogleGenerativeAI, prompt: str) -> Iterator[str]:
