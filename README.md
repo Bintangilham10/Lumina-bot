@@ -12,13 +12,15 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Streamlit web UI with Indonesian language support
 - Streaming answers in the web chat
 - Staged upload progress for document processing
-- Web controls for chunking, retrieval, model, temperature, and indexing limits
-- Optional Streamlit password gate, per-session question rate limiting, and audit logging
+- Web controls for chunking, retrieval, relevance threshold, model, temperature, and indexing limits
+- Optional Streamlit password gate, per-session/global question rate limiting, and audit logging
 - File signature checks for PDF, DOCX, and EPUB uploads
+- ZIP safety limits for DOCX and EPUB uploads to reduce decompression-bomb risk
 - CLI chatbot for terminal workflows
 - CLI reuse of persisted Chroma collections for unchanged documents and chunking settings
 - Dockerfile and CI workflow with unit tests, dependency audit, and image build checks
 - Numbered source citations for retrieved document evidence
+- Optional minimum relevance score guard to suppress weak document matches
 - Document metadata display: filename, pages/sections, and total chunks
 - Source metadata and snippets for retrieved answers
 
@@ -107,6 +109,7 @@ GEMINI_CHAT_MODEL=gemini-3.5-flash
 GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
 LUMINA_APP_PASSWORD=
 LUMINA_MAX_QUESTIONS_PER_MINUTE=20
+LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
 LUMINA_ALLOWED_CHAT_MODELS=gemini-3.5-flash
 LUMINA_ALLOWED_EMBEDDING_MODELS=models/gemini-embedding-2
@@ -147,6 +150,7 @@ Useful CLI options:
 | `--chunk-size` | Maximum characters per chunk. Default: `1000` |
 | `--chunk-overlap` | Characters shared between adjacent chunks. Default: `200` |
 | `--retrieval-k` | Number of chunks retrieved for each question. Default: `4` |
+| `--min-relevance-score` | Minimum retrieval relevance score from `0` to `1`. Default: `0`, which disables score filtering |
 | `--persist-dir` | Directory for persisted ChromaDB collections. Default: `chroma_db` |
 | `--rebuild-index` | Recreate embeddings even if a matching persisted collection already exists |
 | `--chat-model` | Override `GEMINI_CHAT_MODEL` for one run |
@@ -216,6 +220,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
 | `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
+| `LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE` | Process-wide Streamlit question limit across sessions. Defaults to `120`; use `0` to disable |
 | `LUMINA_AUDIT_LOG_PATH` | Optional JSONL audit log path. Leave blank to disable audit logging |
 | `LUMINA_ALLOWED_CHAT_MODELS` | Comma-separated chat model allowlist for the Streamlit selector |
 | `LUMINA_ALLOWED_EMBEDDING_MODELS` | Comma-separated embedding model allowlist for the Streamlit selector |
