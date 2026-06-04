@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import os
+from threading import Lock
 
 from dotenv import load_dotenv
 
@@ -12,8 +13,12 @@ APP_PASSWORD_ENV_VAR = "LUMINA_APP_PASSWORD"
 ALLOWED_CHAT_MODELS_ENV_VAR = "LUMINA_ALLOWED_CHAT_MODELS"
 ALLOWED_EMBEDDING_MODELS_ENV_VAR = "LUMINA_ALLOWED_EMBEDDING_MODELS"
 MAX_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_QUESTIONS_PER_MINUTE"
+MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE"
 DEFAULT_MAX_QUESTIONS_PER_MINUTE = 20
+DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE = 120
 RATE_LIMIT_WINDOW_SECONDS = 60
+_global_question_timestamps: list[float] = []
+_global_rate_limit_lock = Lock()
 
 
 def configured_password() -> str:
@@ -75,3 +80,22 @@ def check_rate_limit(
 
     recent.append(now)
     return True, recent, 0
+
+
+def check_global_rate_limit(
+    now: float,
+    max_events: int,
+    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+) -> tuple[bool, int]:
+    """Apply a process-wide question rate limit across Streamlit sessions."""
+    global _global_question_timestamps
+
+    with _global_rate_limit_lock:
+        allowed, timestamps, retry_after = check_rate_limit(
+            list(_global_question_timestamps),
+            now,
+            max_events,
+            window_seconds,
+        )
+        _global_question_timestamps = timestamps
+        return allowed, retry_after
