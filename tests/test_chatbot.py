@@ -6,7 +6,12 @@ import unittest
 
 from langchain_core.documents import Document
 
-from core.chatbot import ask_question, format_documents_context, stream_question
+from core.chatbot import (
+    DocumentQaChain,
+    ask_question,
+    format_documents_context,
+    stream_question,
+)
 
 
 class FakeChunk:
@@ -54,6 +59,16 @@ class FakeQaChain:
         self.combine_documents_chain = FakeCombineDocumentsChain(llm)
 
 
+class FakeScoredVectorStore:
+    def __init__(self, results) -> None:
+        self.results = results
+        self.queries: list[tuple[str, int]] = []
+
+    def similarity_search_with_relevance_scores(self, question: str, k: int):
+        self.queries.append((question, k))
+        return self.results
+
+
 class ChatbotStreamingTests(unittest.TestCase):
     def test_stream_question_streams_answer_and_returns_sources(self) -> None:
         documents = [
@@ -90,6 +105,61 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertEqual(response["result"], "Alpha beta [1]")
         self.assertEqual(response["source_documents"], documents)
         self.assertIn("Source [1]: doc.pdf | page/section 1", llm.prompts[0])
+
+    def test_ask_question_filters_sources_by_relevance_score(self) -> None:
+        strong = Document(
+            page_content="Strong source paragraph.",
+            metadata={"filename": "doc.pdf", "page": 1},
+        )
+        weak = Document(
+            page_content="Weak source paragraph.",
+            metadata={"filename": "doc.pdf", "page": 2},
+        )
+        vector_store = FakeScoredVectorStore([(strong, 0.91), (weak, 0.42)])
+        llm = FakeLlm()
+        qa_chain = DocumentQaChain(
+            retriever=FakeRetriever([]),
+            llm=llm,  # type: ignore[arg-type]
+            vector_store=vector_store,  # type: ignore[arg-type]
+            retrieval_k=2,
+            min_relevance_score=0.7,
+        )
+
+        response = ask_question(qa_chain, "What is covered?")
+
+        self.assertEqual(response["result"], "Alpha beta [1]")
+        self.assertEqual(vector_store.queries, [("What is covered?", 2)])
+        self.assertEqual(len(response["source_documents"]), 1)
+        self.assertEqual(
+            response["source_documents"][0].metadata["relevance_score"],
+            0.91,
+        )
+        self.assertIn("Strong source paragraph.", llm.prompts[0])
+        self.assertNotIn("Weak source paragraph.", llm.prompts[0])
+
+    def test_ask_question_returns_not_found_when_no_source_passes_threshold(self) -> None:
+        document = Document(
+            page_content="Weak source paragraph.",
+            metadata={"filename": "doc.pdf", "page": 1},
+        )
+        vector_store = FakeScoredVectorStore([(document, 0.2)])
+        llm = FakeLlm()
+        qa_chain = DocumentQaChain(
+            retriever=FakeRetriever([]),
+            llm=llm,  # type: ignore[arg-type]
+            vector_store=vector_store,  # type: ignore[arg-type]
+            retrieval_k=1,
+            min_relevance_score=0.8,
+        )
+
+        response = ask_question(qa_chain, "Apa isi rahasianya?")
+
+        self.assertEqual(
+            response["result"],
+            "Informasi tersebut tidak ditemukan di dokumen.",
+        )
+        self.assertEqual(response["source_documents"], [])
+        self.assertEqual(llm.prompts, [])
 
     def test_stream_question_rejects_empty_question(self) -> None:
         qa_chain = FakeQaChain([], FakeLlm())
