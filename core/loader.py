@@ -16,6 +16,13 @@ from langchain_core.documents import Document
 from utils.helpers import clean_text, is_supported_file, supported_extensions_text
 
 
+MAX_ZIP_ENTRY_COUNT = 2000
+MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES = 25 * 1024 * 1024
+MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+MAX_ZIP_COMPRESSION_RATIO = 1000.0
+MIN_RATIO_CHECK_BYTES = 1024 * 1024
+
+
 @dataclass(frozen=True)
 class LoadedDocument:
     """Loaded document payload and display metadata."""
@@ -88,6 +95,7 @@ def _validate_zip_members(path: Path, required_members: set[str], file_type: str
     if not zipfile.is_zipfile(path):
         raise ValueError(f"File content does not look like a {file_type} document.")
     with zipfile.ZipFile(path) as archive:
+        _validate_zip_archive_safety(archive, file_type)
         names = set(archive.namelist())
     if not required_members.issubset(names):
         raise ValueError(f"File content does not look like a {file_type} document.")
@@ -97,12 +105,45 @@ def _validate_epub_signature(path: Path) -> None:
     if not zipfile.is_zipfile(path):
         raise ValueError("File content does not look like an EPUB document.")
     with zipfile.ZipFile(path) as archive:
+        _validate_zip_archive_safety(archive, "EPUB")
         names = set(archive.namelist())
         if "mimetype" not in names:
             raise ValueError("File content does not look like an EPUB document.")
         mimetype = archive.read("mimetype").decode("utf-8", errors="ignore").strip()
     if mimetype != "application/epub+zip":
         raise ValueError("File content does not look like an EPUB document.")
+
+
+def _validate_zip_archive_safety(archive: zipfile.ZipFile, file_type: str) -> None:
+    entries = [info for info in archive.infolist() if not info.is_dir()]
+    if len(entries) > MAX_ZIP_ENTRY_COUNT:
+        raise ValueError(
+            f"{file_type} archive has too many files to process safely "
+            f"({len(entries)} > {MAX_ZIP_ENTRY_COUNT})."
+        )
+
+    total_uncompressed = 0
+    for entry in entries:
+        total_uncompressed += entry.file_size
+        if entry.file_size > MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES:
+            raise ValueError(
+                f"{file_type} archive entry '{entry.filename}' is too large to process safely."
+            )
+        compressed_size = max(entry.compress_size, 1)
+        compression_ratio = entry.file_size / compressed_size
+        if (
+            entry.file_size >= MIN_RATIO_CHECK_BYTES
+            and compression_ratio > MAX_ZIP_COMPRESSION_RATIO
+        ):
+            raise ValueError(
+                f"{file_type} archive entry '{entry.filename}' has an unsafe compression ratio."
+            )
+
+    if total_uncompressed > MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES:
+        raise ValueError(
+            f"{file_type} archive expands beyond the safe processing limit "
+            f"({total_uncompressed} bytes > {MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES} bytes)."
+        )
 
 
 def _load_pdf(path: Path) -> list[Document]:
