@@ -18,6 +18,7 @@ class SourceReference:
     page: str
     section: str
     snippet: str
+    relevance_score: float | None = None
 
 
 def normalize_source_snippet(text: str, max_length: int) -> str:
@@ -40,6 +41,18 @@ def source_metadata(document: Document) -> tuple[str, str, str]:
     page = str(metadata.get("page", "-"))
     section = str(metadata.get("section", "")).strip()
     return filename, page, section
+
+
+def source_relevance_score(document: Document) -> float | None:
+    """Return a normalized relevance score when retrieval provided one."""
+    metadata = document.metadata or {}
+    raw_score = metadata.get("relevance_score")
+    if raw_score is None:
+        return None
+    try:
+        return float(raw_score)
+    except (TypeError, ValueError):
+        return None
 
 
 def build_source_references(
@@ -66,6 +79,7 @@ def build_source_references(
                 page=page,
                 section=section,
                 snippet=normalize_source_snippet(document.page_content, snippet_length),
+                relevance_score=source_relevance_score(document),
             )
         )
         if max_sources is not None and len(references) >= max_sources:
