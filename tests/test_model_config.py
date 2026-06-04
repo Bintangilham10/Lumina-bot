@@ -44,6 +44,14 @@ class ModelConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "retrieval k"):
             create_qa_chain(object(), k=0)  # type: ignore[arg-type]
 
+    def test_create_qa_chain_rejects_out_of_range_min_relevance_score(self) -> None:
+        with self.assertRaisesRegex(ValueError, "min_relevance_score"):
+            create_qa_chain(
+                object(),  # type: ignore[arg-type]
+                k=1,
+                min_relevance_score=1.1,
+            )
+
     def test_create_llm_rejects_out_of_range_temperature(self) -> None:
         with self.assertRaisesRegex(ValueError, "temperature"):
             create_llm(temperature=1.1)
