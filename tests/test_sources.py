@@ -23,7 +23,12 @@ class SourceHelperTests(unittest.TestCase):
         documents = [
             Document(
                 page_content="First source paragraph.",
-                metadata={"filename": "doc.pdf", "page": 2, "section": "Page 2"},
+                metadata={
+                    "filename": "doc.pdf",
+                    "page": 2,
+                    "section": "Page 2",
+                    "relevance_score": 0.88,
+                },
             ),
             Document(
                 page_content="Duplicate source paragraph.",
@@ -40,6 +45,7 @@ class SourceHelperTests(unittest.TestCase):
         self.assertEqual([reference.number for reference in references], [1, 2])
         self.assertEqual(references[0].filename, "doc.pdf")
         self.assertEqual(references[0].page, "2")
+        self.assertEqual(references[0].relevance_score, 0.88)
         self.assertIn("First source paragraph.", references[0].snippet)
         self.assertIn("Second source paragraph.", references[1].snippet)
 
