@@ -63,7 +63,12 @@ class AppFormattingTests(unittest.TestCase):
         documents = [
             Document(
                 page_content="First answer paragraph with details.",
-                metadata={"filename": "doc.pdf", "page": 2, "section": "Page 2"},
+                metadata={
+                    "filename": "doc.pdf",
+                    "page": 2,
+                    "section": "Page 2",
+                    "relevance_score": 0.76,
+                },
             ),
             Document(
                 page_content="Duplicate source should not appear.",
@@ -77,6 +82,7 @@ class AppFormattingTests(unittest.TestCase):
         self.assertIn("[1] doc.pdf", sources[0])
         self.assertIn("doc.pdf", sources[0])
         self.assertIn("Halaman/bagian: 2", sources[0])
+        self.assertIn("Relevansi: 0.76", sources[0])
         self.assertIn("First answer paragraph with details.", sources[0])
         self.assertNotIn("Duplicate source should not appear.", sources[0])
 
