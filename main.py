@@ -67,6 +67,17 @@ def temperature_value(value: str) -> float:
     return parsed
 
 
+def relevance_score_value(value: str) -> float:
+    """Parse a relevance score threshold for argparse options."""
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Lumina Doc - AI-powered document chatbot for PDF, DOCX, and EPUB files."
@@ -117,6 +128,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=temperature_value,
         default=0.2,
         help="Gemini response temperature from 0 to 1. Default: 0.2.",
+    )
+    parser.add_argument(
+        "--min-relevance-score",
+        type=relevance_score_value,
+        default=0.0,
+        help=(
+            "Minimum retrieval relevance score from 0 to 1. "
+            "Default: 0 disables score filtering."
+        ),
     )
     parser.add_argument(
         "--hide-sources",
@@ -190,6 +210,8 @@ def format_cli_sources(source_documents, max_sources: int = 4) -> list[str]:
             f"Page {reference.page}",
         }:
             label_parts.append(reference.section)
+        if reference.relevance_score is not None:
+            label_parts.append(f"relevance {reference.relevance_score:.2f}")
 
         label = " | ".join(label_parts)
         sources.append(f"{label} - {reference.snippet}" if reference.snippet else label)
@@ -269,11 +291,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 persist_directory=persist_dir,
                 embedding_model=embedding_model,
             )
+
         qa_chain = create_qa_chain(
             vector_store,
             k=args.retrieval_k,
             model=args.chat_model,
             temperature=args.temperature,
+            min_relevance_score=args.min_relevance_score or None,
         )
 
         print("\nLumina Doc is ready. Type 'exit' or 'quit' to stop.")
