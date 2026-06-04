@@ -5,7 +5,9 @@ from __future__ import annotations
 import tempfile
 import unittest
 import warnings
+import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 import docx
 import fitz
@@ -60,6 +62,40 @@ class LoaderTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "EPUB"):
                 load_document(path)
+
+    def test_load_document_rejects_docx_zip_with_too_many_entries(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "many-files.docx"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("[Content_Types].xml", "<Types />")
+                archive.writestr("word/document.xml", "<document />")
+                archive.writestr("extra.txt", "extra")
+
+            with patch("core.loader.MAX_ZIP_ENTRY_COUNT", 2):
+                with self.assertRaisesRegex(ValueError, "too many files"):
+                    load_document(path)
+
+    def test_load_document_rejects_docx_zip_with_large_entry(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "large-entry.docx"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("[Content_Types].xml", "<Types />")
+                archive.writestr("word/document.xml", "A" * 11)
+
+            with patch("core.loader.MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES", 10):
+                with self.assertRaisesRegex(ValueError, "too large"):
+                    load_document(path)
+
+    def test_load_document_rejects_epub_zip_with_large_entry(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "large-entry.epub"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("mimetype", "application/epub+zip")
+                archive.writestr("chapter.xhtml", "A" * 11)
+
+            with patch("core.loader.MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES", 10):
+                with self.assertRaisesRegex(ValueError, "too large"):
+                    load_document(path)
 
     def test_load_document_reads_pdf_text(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
