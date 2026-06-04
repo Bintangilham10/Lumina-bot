@@ -29,8 +29,11 @@ from utils.security import (
     ALLOWED_CHAT_MODELS_ENV_VAR,
     ALLOWED_EMBEDDING_MODELS_ENV_VAR,
     DEFAULT_MAX_QUESTIONS_PER_MINUTE,
+    DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE,
+    MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR,
     MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
     RATE_LIMIT_WINDOW_SECONDS,
+    check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
     configured_password,
@@ -44,6 +47,7 @@ APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
 SOURCE_SNIPPET_LENGTH = 280
 DEFAULT_RETRIEVAL_K = 4
 DEFAULT_TEMPERATURE = 0.2
+DEFAULT_MIN_RELEVANCE_SCORE = 0.0
 PROCESSING_STEPS: tuple[tuple[int, str], ...] = (
     (10, "Menyimpan file sementara..."),
     (30, "Membaca isi dokumen..."),
@@ -58,6 +62,7 @@ class AppSettings:
     chunk_size: int
     chunk_overlap: int
     retrieval_k: int
+    min_relevance_score: float
     chat_model: str
     embedding_model: str
     temperature: float
@@ -71,6 +76,7 @@ class AppSettings:
                 str(self.chunk_size),
                 str(self.chunk_overlap),
                 str(self.retrieval_k),
+                f"{self.min_relevance_score:g}",
                 self.chat_model,
                 self.embedding_model,
                 f"{self.temperature:g}",
@@ -220,6 +226,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 k=settings.retrieval_k,
                 model=settings.chat_model or None,
                 temperature=settings.temperature,
+                min_relevance_score=settings.min_relevance_score or None,
             )
             st.session_state.document_meta = {
                 "filename": uploaded_file.name,
@@ -229,6 +236,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 "chunk_size": settings.chunk_size,
                 "chunk_overlap": settings.chunk_overlap,
                 "retrieval_k": settings.retrieval_k,
+                "min_relevance_score": settings.min_relevance_score,
                 "chat_model": settings.chat_model,
                 "embedding_model": settings.embedding_model,
             }
@@ -241,6 +249,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
                 retrieval_k=settings.retrieval_k,
+                min_relevance_score=settings.min_relevance_score,
             )
             st.session_state.processed_file_id = file_id
             st.session_state.messages = []
@@ -297,6 +306,15 @@ def render_settings_controls() -> AppSettings:
                 step=0.05,
             )
         )
+        min_relevance_score = float(
+            st.slider(
+                "Minimum relevansi",
+                min_value=0.0,
+                max_value=1.0,
+                value=DEFAULT_MIN_RELEVANCE_SCORE,
+                step=0.05,
+            )
+        )
         chat_model_default = resolve_chat_model()
         chat_model = st.selectbox(
             "Model chat",
@@ -347,6 +365,7 @@ def render_settings_controls() -> AppSettings:
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         retrieval_k=retrieval_k,
+        min_relevance_score=min_relevance_score,
         chat_model=chat_model,
         embedding_model=embedding_model,
         temperature=temperature,
@@ -376,22 +395,42 @@ def authenticate_session() -> bool:
 
 
 def rate_limit_question() -> bool:
+    now = time.time()
     max_questions = int_from_env(
         MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
         DEFAULT_MAX_QUESTIONS_PER_MINUTE,
     )
     allowed, timestamps, retry_after = check_rate_limit(
         list(st.session_state.question_timestamps),
-        time.time(),
+        now,
         max_questions,
         RATE_LIMIT_WINDOW_SECONDS,
     )
     st.session_state.question_timestamps = timestamps
-    if allowed:
+    if not allowed:
+        audit_event("question_rate_limited", retry_after_seconds=retry_after)
+        st.warning(f"Terlalu banyak pertanyaan. Coba lagi dalam {retry_after} detik.")
+        return False
+
+    max_global_questions = int_from_env(
+        MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR,
+        DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE,
+    )
+    global_allowed, global_retry_after = check_global_rate_limit(
+        now,
+        max_global_questions,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if global_allowed:
         return True
 
-    audit_event("question_rate_limited", retry_after_seconds=retry_after)
-    st.warning(f"Terlalu banyak pertanyaan. Coba lagi dalam {retry_after} detik.")
+    audit_event(
+        "question_global_rate_limited",
+        retry_after_seconds=global_retry_after,
+    )
+    st.warning(
+        f"Layanan sedang sibuk. Coba lagi dalam {global_retry_after} detik."
+    )
     return False
 
 
@@ -418,6 +457,9 @@ def render_sidebar() -> None:
             chunk_size = meta.get("chunk_size", DEFAULT_CHUNK_SIZE)
             chunk_overlap = meta.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
             retrieval_k = meta.get("retrieval_k", DEFAULT_RETRIEVAL_K)
+            min_relevance_score = float(
+                meta.get("min_relevance_score", DEFAULT_MIN_RELEVANCE_SCORE)
+            )
             chat_model = escape(str(meta.get("chat_model", resolve_chat_model())))
             embedding_model = escape(
                 str(meta.get("embedding_model", resolve_embedding_model()))
@@ -432,6 +474,7 @@ def render_sidebar() -> None:
                     <strong>Total chunk</strong><br>{meta["total_chunks"]}<br><br>
                     <strong>Chunk / overlap</strong><br>{chunk_size} / {chunk_overlap}<br><br>
                     <strong>Top-k sumber</strong><br>{retrieval_k}<br><br>
+                    <strong>Minimum relevansi</strong><br>{min_relevance_score:.2f}<br><br>
                     <strong>Model chat</strong><br>{chat_model}<br><br>
                     <strong>Model embedding</strong><br>{embedding_model}
                 </div>
@@ -516,6 +559,11 @@ def format_sources(source_documents) -> list[str]:
         page = escape(reference.page)
         section = escape(reference.section)
         section_html = f"<br>{section}" if section else ""
+        score_html = (
+            f"<br>Relevansi: {reference.relevance_score:.2f}"
+            if reference.relevance_score is not None
+            else ""
+        )
         snippet_html = (
             f'<div class="lumina-source-snippet">{escape(reference.snippet)}</div>'
             if reference.snippet
@@ -524,7 +572,7 @@ def format_sources(source_documents) -> list[str]:
         sources.append(
             '<div class="lumina-source">'
             f'<div class="lumina-source-title">{title}</div>'
-            f"Halaman/bagian: {page}{section_html}{snippet_html}</div>"
+            f"Halaman/bagian: {page}{section_html}{score_html}{snippet_html}</div>"
         )
 
     return sources
