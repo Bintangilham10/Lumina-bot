@@ -7,7 +7,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from utils.audit import audit_event, audit_log_path
+from langchain_core.documents import Document
+
+from utils.audit import (
+    audit_event,
+    audit_log_path,
+    document_text_stats,
+    duration_ms,
+    estimate_token_count,
+)
 
 
 class AuditTests(unittest.TestCase):
@@ -35,6 +43,27 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(record["total_chunks"], 3)
         self.assertEqual(record["complex_value"], "{'raw': 'value'}")
         self.assertIn("timestamp", record)
+
+    def test_duration_ms_returns_non_negative_elapsed_time(self) -> None:
+        self.assertEqual(duration_ms(1.0, 1.234), 234)
+        self.assertEqual(duration_ms(2.0, 1.0), 0)
+
+    def test_estimate_token_count_uses_privacy_safe_text_length(self) -> None:
+        self.assertEqual(estimate_token_count(""), 0)
+        self.assertEqual(estimate_token_count("abcd"), 1)
+        self.assertEqual(estimate_token_count("abcdef"), 2)
+
+    def test_document_text_stats_aggregates_document_sizes(self) -> None:
+        stats = document_text_stats(
+            [
+                Document(page_content="abcd", metadata={}),
+                Document(page_content="abcdefgh", metadata={}),
+            ]
+        )
+
+        self.assertEqual(stats["document_count"], 2)
+        self.assertEqual(stats["text_chars"], 12)
+        self.assertEqual(stats["estimated_tokens"], 3)
 
 
 if __name__ == "__main__":
