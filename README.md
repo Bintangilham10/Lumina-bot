@@ -14,6 +14,7 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Staged upload progress for document processing
 - Web controls for chunking, retrieval, relevance threshold, model, temperature, and indexing limits
 - Optional Streamlit password gate, per-session/global question rate limiting, and audit logging
+- Privacy-safe audit metrics for processing latency, answer latency, and approximate context size
 - File signature checks for PDF, DOCX, and EPUB uploads
 - ZIP safety limits for DOCX and EPUB uploads to reduce decompression-bomb risk
 - CLI chatbot for terminal workflows
@@ -199,7 +200,9 @@ docker build -t lumina-doc .
 docker run --rm -p 8501:8501 --env-file .env lumina-doc
 ```
 
-For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, rate-limit events, and answer/error events without storing document text or raw questions.
+For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, rate-limit events, answer/error events, latency, and approximate context size without storing document text or raw questions.
+
+The Docker image runs the Streamlit app as a non-root `lumina` user. If you mount a host directory for CLI ChromaDB persistence or audit logs, make sure the mounted path is writable by the container user.
 
 The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Docker image build on every push and pull request. Dependabot checks Python packages and GitHub Actions weekly.
 
