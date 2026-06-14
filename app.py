@@ -15,7 +15,12 @@ from core.chatbot import create_qa_chain, resolve_chat_model, stream_question
 from core.embedder import create_vector_store, resolve_embedding_model
 from core.loader import load_document
 from core.splitter import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, split_documents
-from utils.audit import audit_event
+from utils.audit import (
+    audit_event,
+    document_text_stats,
+    duration_ms,
+    estimate_token_count,
+)
 from utils.helpers import (
     DEFAULT_MAX_CHUNKS,
     DEFAULT_MAX_FILE_SIZE_MB,
@@ -172,6 +177,7 @@ def render_processing_step(status, progress, step_index: int) -> None:
 
 
 def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
+    processing_started_at = time.perf_counter()
     file_size_attr = getattr(uploaded_file, "size", None)
     file_size = int(
         file_size_attr if file_size_attr is not None else len(uploaded_file.getbuffer())
@@ -198,6 +204,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
             )
+            chunk_stats = document_text_stats(chunks)
             validate_document_limits(
                 total_pages=loaded.total_pages,
                 total_chunks=len(chunks),
@@ -250,6 +257,9 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 chunk_overlap=settings.chunk_overlap,
                 retrieval_k=settings.retrieval_k,
                 min_relevance_score=settings.min_relevance_score,
+                processing_duration_ms=duration_ms(processing_started_at),
+                indexed_text_chars=chunk_stats["text_chars"],
+                estimated_indexed_tokens=chunk_stats["estimated_tokens"],
             )
             st.session_state.processed_file_id = file_id
             st.session_state.messages = []
@@ -260,6 +270,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 "document_processing_error",
                 filename=uploaded_file.name,
                 error_type=type(exc).__name__,
+                processing_duration_ms=duration_ms(processing_started_at),
             )
             status.update(label="Pemrosesan dokumen gagal.", state="error", expanded=True)
             raise
@@ -514,12 +525,14 @@ def render_chat() -> None:
         st.markdown(question)
 
     with st.chat_message("assistant"):
+        answer_started_at = time.perf_counter()
         try:
             with st.spinner("Mencari jawaban di dokumen..."):
                 answer_stream, source_documents = stream_question(
                     st.session_state.qa_chain,
                     question,
                 )
+                source_stats = document_text_stats(source_documents)
                 sources = format_sources(source_documents)
                 answer = str(st.write_stream(answer_stream)).strip()
                 if sources:
@@ -529,8 +542,13 @@ def render_chat() -> None:
                 audit_event(
                     "question_answered",
                     question_length=len(question),
+                    question_estimated_tokens=estimate_token_count(question),
                     answer_length=len(answer),
+                    answer_estimated_tokens=estimate_token_count(answer),
                     source_count=len(sources),
+                    retrieved_context_chars=source_stats["text_chars"],
+                    retrieved_context_estimated_tokens=source_stats["estimated_tokens"],
+                    answer_duration_ms=duration_ms(answer_started_at),
                 )
         except Exception as exc:
             sources = []
@@ -539,6 +557,7 @@ def render_chat() -> None:
                 "question_error",
                 question_length=len(question),
                 error_type=type(exc).__name__,
+                answer_duration_ms=duration_ms(answer_started_at),
             )
             st.error(answer)
 
