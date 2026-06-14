@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -50,3 +52,36 @@ def _safe_value(value: Any) -> str | int | float | bool | None:
     if value is None or isinstance(value, str | int | float | bool):
         return value
     return str(value)
+
+
+def duration_ms(started_at: float, ended_at: float | None = None) -> int:
+    """Return elapsed milliseconds from a monotonic start timestamp."""
+    finished_at = time.perf_counter() if ended_at is None else ended_at
+    return max(0, int(round((finished_at - started_at) * 1000)))
+
+
+def estimate_token_count(text: str) -> int:
+    """Estimate token count without storing text or calling a tokenizer."""
+    normalized = " ".join(str(text).split())
+    if not normalized:
+        return 0
+    return max(1, (len(normalized) + 3) // 4)
+
+
+def document_text_stats(documents: Iterable[Any]) -> dict[str, int]:
+    """Return privacy-safe aggregate text metrics for LangChain documents."""
+    total_chars = 0
+    total_estimated_tokens = 0
+    document_count = 0
+
+    for document in documents:
+        text = str(getattr(document, "page_content", ""))
+        total_chars += len(text)
+        total_estimated_tokens += estimate_token_count(text)
+        document_count += 1
+
+    return {
+        "document_count": document_count,
+        "text_chars": total_chars,
+        "estimated_tokens": total_estimated_tokens,
+    }
