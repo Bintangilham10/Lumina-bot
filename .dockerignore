@@ -2,6 +2,7 @@
 .github
 __pycache__/
 *.py[cod]
+.coverage
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -10,5 +11,6 @@ chroma_db/
 data/*
 !data/.gitkeep
 logs/
+tests/
 venv/
 .venv/
