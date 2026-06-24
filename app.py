@@ -17,6 +17,7 @@ from core.loader import load_document
 from core.splitter import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, split_documents
 from utils.audit import (
     audit_event,
+    audit_filename_fields,
     document_text_stats,
     duration_ms,
     estimate_token_count,
@@ -60,6 +61,14 @@ PROCESSING_STEPS: tuple[tuple[int, str], ...] = (
     (80, "Membuat embedding dan indeks pencarian..."),
     (95, "Menyiapkan sesi tanya jawab..."),
 )
+USER_SAFE_ERROR_MESSAGES = {
+    "document_processing": (
+        "Gagal memproses dokumen. Periksa format, ukuran, lalu coba lagi."
+    ),
+    "question_answering": (
+        "Gagal menjawab pertanyaan. Coba lagi dalam beberapa saat."
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -135,6 +144,14 @@ def configure_page() -> None:
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+
+def user_safe_error_message(operation: str) -> str:
+    """Return a generic message that does not expose internal exception details."""
+    return USER_SAFE_ERROR_MESSAGES.get(
+        operation,
+        "Terjadi kesalahan. Coba lagi dalam beberapa saat.",
     )
 
 
@@ -249,7 +266,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
             }
             audit_event(
                 "document_processed",
-                filename=uploaded_file.name,
+                **audit_filename_fields(uploaded_file.name),
                 file_type=loaded.file_type,
                 total_pages=loaded.total_pages,
                 total_chunks=len(chunks),
@@ -268,7 +285,7 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
         except Exception as exc:
             audit_event(
                 "document_processing_error",
-                filename=uploaded_file.name,
+                **audit_filename_fields(uploaded_file.name),
                 error_type=type(exc).__name__,
                 processing_duration_ms=duration_ms(processing_started_at),
             )
@@ -459,9 +476,9 @@ def render_sidebar() -> None:
             try:
                 process_uploaded_document(uploaded_file, settings)
                 st.success("Dokumen siap ditanyakan.")
-            except Exception as exc:
+            except Exception:
                 reset_document_state()
-                st.error(f"Gagal memproses dokumen: {exc}")
+                st.error(user_safe_error_message("document_processing"))
 
         meta = st.session_state.document_meta
         if meta:
@@ -552,7 +569,7 @@ def render_chat() -> None:
                 )
         except Exception as exc:
             sources = []
-            answer = f"Gagal menjawab pertanyaan: {exc}"
+            answer = user_safe_error_message("question_answering")
             audit_event(
                 "question_error",
                 question_length=len(question),

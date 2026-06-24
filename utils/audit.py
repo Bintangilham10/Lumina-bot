@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -14,6 +15,7 @@ from utils.helpers import ensure_directory
 
 
 AUDIT_LOG_ENV_VAR = "LUMINA_AUDIT_LOG_PATH"
+FILENAME_HASH_LENGTH = 16
 
 
 def audit_log_path(log_path: str | Path | None = None) -> Path | None:
@@ -46,6 +48,16 @@ def audit_event(
             file.write(json.dumps(record, sort_keys=True) + "\n")
     except OSError:
         return
+
+
+def audit_filename_fields(filename: str) -> dict[str, str]:
+    """Return privacy-safe audit fields for a document filename."""
+    safe_name = Path(str(filename)).name
+    digest = hashlib.sha256(safe_name.encode("utf-8")).hexdigest()
+    return {
+        "filename_hash": digest[:FILENAME_HASH_LENGTH],
+        "file_extension": Path(safe_name).suffix.lower(),
+    }
 
 
 def _safe_value(value: Any) -> str | int | float | bool | None:
