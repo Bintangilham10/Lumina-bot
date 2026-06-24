@@ -53,18 +53,27 @@ class SourceHelperTests(unittest.TestCase):
         documents = [
             Document(
                 page_content="First chunk.",
-                metadata={"filename": "doc.pdf", "page": 2, "section": "Page 2"},
+                metadata={
+                    "filename": "private-report.pdf",
+                    "page": 2,
+                    "section": "Page 2",
+                },
             ),
             Document(
                 page_content="Second chunk.",
-                metadata={"filename": "doc.pdf", "page": 2, "section": "Page 2"},
+                metadata={
+                    "filename": "private-report.pdf",
+                    "page": 2,
+                    "section": "Page 2",
+                },
             ),
         ]
 
         context = format_source_context(documents)
 
-        self.assertIn("Source [1]: doc.pdf | page/section 2\nFirst chunk.", context)
-        self.assertIn("Source [1]: doc.pdf | page/section 2\nSecond chunk.", context)
+        self.assertIn("Source [1]: page/section 2\nFirst chunk.", context)
+        self.assertIn("Source [1]: page/section 2\nSecond chunk.", context)
+        self.assertNotIn("private-report.pdf", context)
         self.assertNotIn("Source [2]", context)
 
 
