@@ -200,7 +200,7 @@ docker build -t lumina-doc .
 docker run --rm -p 8501:8501 --env-file .env lumina-doc
 ```
 
-For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, rate-limit events, answer/error events, latency, and approximate context size without storing document text or raw questions.
+For public or shared deployments, set `LUMINA_APP_PASSWORD`, keep `GOOGLE_API_KEY` in deployment secrets, and put the container behind HTTPS. Set `LUMINA_AUDIT_LOG_PATH` to enable JSONL audit logs that record metadata such as upload outcomes, filename hash and extension, rate-limit events, answer/error events, latency, and approximate context size without storing raw filenames, document text, or raw questions.
 
 The Docker image runs the Streamlit app as a non-root `lumina` user. If you mount a host directory for CLI ChromaDB persistence or audit logs, make sure the mounted path is writable by the container user.
 
