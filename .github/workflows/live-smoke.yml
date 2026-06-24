@@ -3,6 +3,9 @@ name: Live Gemini Smoke
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
