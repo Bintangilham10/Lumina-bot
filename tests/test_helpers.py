@@ -51,6 +51,27 @@ class HelperTests(unittest.TestCase):
                 "lumina-abcdef1234567890-cs1200-co180-models-gemini"
             )
         )
+        self.assertNotIn("very-long-document-name", name)
+
+    def test_document_collection_name_does_not_depend_on_filename(self) -> None:
+        first = document_collection_name(
+            "Private Report",
+            "abcdef1234567890fedcba",
+            1200,
+            180,
+            "models/gemini-embedding-2",
+        )
+        second = document_collection_name(
+            "Different Sensitive Name",
+            "abcdef1234567890fedcba",
+            1200,
+            180,
+            "models/gemini-embedding-2",
+        )
+
+        self.assertEqual(first, second)
+        self.assertNotIn("private", first)
+        self.assertNotIn("different-sensitive-name", first)
 
     def test_validate_file_size_rejects_files_over_limit(self) -> None:
         with self.assertRaisesRegex(ValueError, "exceeds"):
