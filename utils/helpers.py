@@ -61,7 +61,11 @@ def document_collection_name(
     chunk_overlap: int,
     embedding_model: str | None = None,
 ) -> str:
-    """Build a stable collection name for a document and chunking settings."""
+    """Build a stable, privacy-safe collection name for document settings.
+
+    The filename stem is accepted for backward compatibility but intentionally
+    not included in the collection name.
+    """
     return safe_collection_name(
         [
             "lumina",
@@ -69,7 +73,6 @@ def document_collection_name(
             f"cs{chunk_size}",
             f"co{chunk_overlap}",
             embedding_model or "",
-            filename_stem,
         ]
     )
 
