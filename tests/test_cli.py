@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import io
 import unittest
+from contextlib import redirect_stderr
+from unittest.mock import patch
 
 from langchain_core.documents import Document
 
 from main import (
     build_parser,
+    cli_safe_error_message,
     format_cli_snippet,
     format_cli_sources,
+    main as run_cli,
     non_negative_int,
     positive_int,
     relevance_score_value,
@@ -102,6 +107,19 @@ class CliTests(unittest.TestCase):
         self.assertIn("relevance 0.83", sources[0])
         self.assertIn("First source paragraph", sources[0])
         self.assertNotIn("Duplicate source", sources[0])
+
+    def test_non_debug_cli_error_does_not_expose_internal_details(self) -> None:
+        stderr = io.StringIO()
+        sensitive_detail = "C:\\secrets\\api-key.txt"
+
+        with patch("main.load_environment", side_effect=RuntimeError(sensitive_detail)):
+            with redirect_stderr(stderr):
+                exit_code = run_cli(["sample.pdf"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stderr.getvalue().strip(), cli_safe_error_message())
+        self.assertNotIn("api-key", stderr.getvalue())
+        self.assertNotIn("secrets", stderr.getvalue())
 
 
 if __name__ == "__main__":
