@@ -11,6 +11,7 @@ from app import (
     format_source_snippet,
     format_sources,
     render_processing_step,
+    user_safe_error_message,
 )
 
 
@@ -85,6 +86,21 @@ class AppFormattingTests(unittest.TestCase):
         self.assertIn("Relevansi: 0.76", sources[0])
         self.assertIn("First answer paragraph with details.", sources[0])
         self.assertNotIn("Duplicate source should not appear.", sources[0])
+
+    def test_user_safe_error_messages_do_not_expose_internal_details(self) -> None:
+        sensitive_detail = "C:\\secrets\\api-key.txt"
+
+        document_message = user_safe_error_message("document_processing")
+        answer_message = user_safe_error_message("question_answering")
+        fallback_message = user_safe_error_message("unknown")
+
+        self.assertNotIn(sensitive_detail, document_message)
+        self.assertNotIn(sensitive_detail, answer_message)
+        self.assertNotIn(sensitive_detail, fallback_message)
+        self.assertNotIn("Traceback", document_message)
+        self.assertNotIn("Traceback", answer_message)
+        self.assertIn("Gagal memproses dokumen", document_message)
+        self.assertIn("Gagal menjawab pertanyaan", answer_message)
 
 
 if __name__ == "__main__":
