@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from langchain_core.documents import Document
 
 from app import (
     PROCESSING_STEPS,
+    evaluate_auth_attempt_limit,
+    evaluate_question_rate_limit,
     format_source_snippet,
     format_sources,
     render_processing_step,
@@ -101,6 +104,46 @@ class AppFormattingTests(unittest.TestCase):
         self.assertNotIn("Traceback", answer_message)
         self.assertIn("Gagal memproses dokumen", document_message)
         self.assertIn("Gagal menjawab pertanyaan", answer_message)
+
+    def test_auth_attempt_limit_blocks_when_window_is_full(self) -> None:
+        allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
+            [1.0, 2.0],
+            now=3.0,
+            max_attempts=2,
+        )
+
+        self.assertFalse(allowed)
+        self.assertEqual(timestamps, [1.0, 2.0])
+        self.assertEqual(retry_after, 58)
+
+    def test_question_limit_does_not_consume_session_when_global_blocks(self) -> None:
+        with patch("app.check_global_rate_limit", return_value=(False, 42)):
+            allowed, timestamps, retry_after, limit_scope = evaluate_question_rate_limit(
+                [1.0],
+                now=2.0,
+                max_questions=2,
+                max_global_questions=1,
+            )
+
+        self.assertFalse(allowed)
+        self.assertEqual(timestamps, [1.0])
+        self.assertEqual(retry_after, 42)
+        self.assertEqual(limit_scope, "global")
+
+    def test_question_limit_blocks_session_before_global_check(self) -> None:
+        with patch("app.check_global_rate_limit") as global_limit:
+            allowed, timestamps, retry_after, limit_scope = evaluate_question_rate_limit(
+                [1.0, 2.0],
+                now=3.0,
+                max_questions=2,
+                max_global_questions=1,
+            )
+
+        global_limit.assert_not_called()
+        self.assertFalse(allowed)
+        self.assertEqual(timestamps, [1.0, 2.0])
+        self.assertEqual(retry_after, 58)
+        self.assertEqual(limit_scope, "session")
 
 
 if __name__ == "__main__":

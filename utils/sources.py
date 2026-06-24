@@ -97,7 +97,7 @@ def format_source_context(documents: list[Document]) -> str:
     for document in documents:
         filename, page, section = source_metadata(document)
         source_number = source_numbers[(filename, page, section)]
-        label = f"Source [{source_number}]: {filename} | page/section {page}"
+        label = f"Source [{source_number}]: page/section {page}"
         if section and section not in {page, f"Page {page}"}:
             label = f"{label} | {section}"
         blocks.append(f"{label}\n{document.page_content}")

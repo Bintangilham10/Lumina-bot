@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from utils.security import (
+    active_rate_limit_timestamps,
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
@@ -63,6 +64,12 @@ class SecurityHelperTests(unittest.TestCase):
         self.assertTrue(allowed)
         self.assertEqual(timestamps, [])
         self.assertEqual(retry_after, 0)
+
+    def test_active_rate_limit_timestamps_prunes_expired_entries(self) -> None:
+        self.assertEqual(
+            active_rate_limit_timestamps([1.0, 2.0, 70.0], now=70.0, window_seconds=60),
+            [70.0],
+        )
 
     def test_check_global_rate_limit_blocks_across_calls(self) -> None:
         with patch("utils.security._global_question_timestamps", []):

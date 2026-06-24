@@ -34,11 +34,14 @@ from utils.helpers import (
 from utils.security import (
     ALLOWED_CHAT_MODELS_ENV_VAR,
     ALLOWED_EMBEDDING_MODELS_ENV_VAR,
+    DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE,
     DEFAULT_MAX_QUESTIONS_PER_MINUTE,
     DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE,
+    MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
     MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR,
     MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
     RATE_LIMIT_WINDOW_SECONDS,
+    active_rate_limit_timestamps,
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
@@ -162,6 +165,7 @@ def initialize_state() -> None:
         "qa_chain": None,
         "document_meta": None,
         "processed_file_id": None,
+        "auth_attempt_timestamps": [],
         "question_timestamps": [],
     }
     for key, value in defaults.items():
@@ -413,13 +417,77 @@ def authenticate_session() -> bool:
     st.title(APP_TITLE)
     password = st.text_input("Password", type="password")
     if st.button("Masuk", use_container_width=True):
+        allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
+            list(st.session_state.auth_attempt_timestamps),
+            time.time(),
+            int_from_env(
+                MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
+                DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE,
+            ),
+        )
+        st.session_state.auth_attempt_timestamps = timestamps
+        if not allowed:
+            audit_event("auth_rate_limited", retry_after_seconds=retry_after)
+            st.warning(
+                f"Terlalu banyak percobaan masuk. Coba lagi dalam {retry_after} detik."
+            )
+            return False
+
         if verify_password(password, expected_password):
             st.session_state.authenticated = True
+            st.session_state.auth_attempt_timestamps = []
             audit_event("auth_success")
             st.rerun()
+            return True
         audit_event("auth_failure")
         st.error("Password tidak cocok.")
     return False
+
+
+def evaluate_auth_attempt_limit(
+    attempt_timestamps: list[float],
+    now: float,
+    max_attempts: int,
+) -> tuple[bool, list[float], int]:
+    """Check password-attempt rate limits without reaching into Streamlit state."""
+    return check_rate_limit(
+        attempt_timestamps,
+        now,
+        max_attempts,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def evaluate_question_rate_limit(
+    session_timestamps: list[float],
+    now: float,
+    max_questions: int,
+    max_global_questions: int,
+) -> tuple[bool, list[float], int, str | None]:
+    """Check question limits while avoiding session quota use on global blocks."""
+    session_allowed, session_candidate, session_retry_after = check_rate_limit(
+        session_timestamps,
+        now,
+        max_questions,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if not session_allowed:
+        return False, session_candidate, session_retry_after, "session"
+
+    global_allowed, global_retry_after = check_global_rate_limit(
+        now,
+        max_global_questions,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if not global_allowed:
+        active_session_timestamps = active_rate_limit_timestamps(
+            session_timestamps,
+            now,
+            RATE_LIMIT_WINDOW_SECONDS,
+        )
+        return False, active_session_timestamps, global_retry_after, "global"
+
+    return True, session_candidate, 0, None
 
 
 def rate_limit_question() -> bool:
@@ -428,36 +496,31 @@ def rate_limit_question() -> bool:
         MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
         DEFAULT_MAX_QUESTIONS_PER_MINUTE,
     )
-    allowed, timestamps, retry_after = check_rate_limit(
-        list(st.session_state.question_timestamps),
-        now,
-        max_questions,
-        RATE_LIMIT_WINDOW_SECONDS,
-    )
-    st.session_state.question_timestamps = timestamps
-    if not allowed:
-        audit_event("question_rate_limited", retry_after_seconds=retry_after)
-        st.warning(f"Terlalu banyak pertanyaan. Coba lagi dalam {retry_after} detik.")
-        return False
-
     max_global_questions = int_from_env(
         MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR,
         DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE,
     )
-    global_allowed, global_retry_after = check_global_rate_limit(
+    allowed, timestamps, retry_after, limit_scope = evaluate_question_rate_limit(
+        list(st.session_state.question_timestamps),
         now,
+        max_questions,
         max_global_questions,
-        RATE_LIMIT_WINDOW_SECONDS,
     )
-    if global_allowed:
+    st.session_state.question_timestamps = timestamps
+    if allowed:
         return True
+
+    if limit_scope == "session":
+        audit_event("question_rate_limited", retry_after_seconds=retry_after)
+        st.warning(f"Terlalu banyak pertanyaan. Coba lagi dalam {retry_after} detik.")
+        return False
 
     audit_event(
         "question_global_rate_limited",
-        retry_after_seconds=global_retry_after,
+        retry_after_seconds=retry_after,
     )
     st.warning(
-        f"Layanan sedang sibuk. Coba lagi dalam {global_retry_after} detik."
+        f"Layanan sedang sibuk. Coba lagi dalam {retry_after} detik."
     )
     return False
 

@@ -14,8 +14,10 @@ ALLOWED_CHAT_MODELS_ENV_VAR = "LUMINA_ALLOWED_CHAT_MODELS"
 ALLOWED_EMBEDDING_MODELS_ENV_VAR = "LUMINA_ALLOWED_EMBEDDING_MODELS"
 MAX_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_QUESTIONS_PER_MINUTE"
 MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE"
+MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE"
 DEFAULT_MAX_QUESTIONS_PER_MINUTE = 20
 DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE = 120
+DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE = 5
 RATE_LIMIT_WINDOW_SECONDS = 60
 _global_question_timestamps: list[float] = []
 _global_rate_limit_lock = Lock()
@@ -70,9 +72,7 @@ def check_rate_limit(
     if max_events <= 0 or window_seconds <= 0:
         return True, [], 0
 
-    recent = [
-        timestamp for timestamp in timestamps if now - timestamp < window_seconds
-    ]
+    recent = active_rate_limit_timestamps(timestamps, now, window_seconds)
     if len(recent) >= max_events:
         oldest = min(recent)
         retry_after = max(1, int(window_seconds - (now - oldest)))
@@ -80,6 +80,19 @@ def check_rate_limit(
 
     recent.append(now)
     return True, recent, 0
+
+
+def active_rate_limit_timestamps(
+    timestamps: list[float],
+    now: float,
+    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+) -> list[float]:
+    """Return timestamps still active in a rate-limit window."""
+    if window_seconds <= 0:
+        return []
+    return [
+        timestamp for timestamp in timestamps if now - timestamp < window_seconds
+    ]
 
 
 def check_global_rate_limit(

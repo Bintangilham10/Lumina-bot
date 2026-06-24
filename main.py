@@ -32,6 +32,9 @@ from utils.sources import build_source_references, normalize_source_snippet
 
 
 SOURCE_SNIPPET_LENGTH = 220
+CLI_SAFE_ERROR_MESSAGE = (
+    "Error: failed to process the document. Use --debug for details."
+)
 
 
 def positive_int(value: str) -> int:
@@ -176,6 +179,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print a full traceback when an error occurs.",
     )
     return parser
+
+
+def cli_safe_error_message() -> str:
+    """Return the non-debug CLI error message without internal details."""
+    return CLI_SAFE_ERROR_MESSAGE
 
 
 def prompt_for_document() -> Path:
@@ -334,7 +342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.debug:
             traceback.print_exc()
         else:
-            print(f"Error: {exc}", file=sys.stderr)
+            print(cli_safe_error_message(), file=sys.stderr)
         return 1
 
 

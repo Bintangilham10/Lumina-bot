@@ -104,7 +104,8 @@ class ChatbotStreamingTests(unittest.TestCase):
 
         self.assertEqual(response["result"], "Alpha beta [1]")
         self.assertEqual(response["source_documents"], documents)
-        self.assertIn("Source [1]: doc.pdf | page/section 1", llm.prompts[0])
+        self.assertIn("Source [1]: page/section 1", llm.prompts[0])
+        self.assertNotIn("doc.pdf", llm.prompts[0])
 
     def test_ask_question_filters_sources_by_relevance_score(self) -> None:
         strong = Document(
@@ -178,10 +179,11 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertEqual(
             context,
             (
-                "Source [1]: doc.pdf | page/section 1\nAlpha\n\n"
-                "Source [2]: doc.pdf | page/section 2\nBeta"
+                "Source [1]: page/section 1\nAlpha\n\n"
+                "Source [2]: page/section 2\nBeta"
             ),
         )
+        self.assertNotIn("doc.pdf", context)
 
 
 if __name__ == "__main__":

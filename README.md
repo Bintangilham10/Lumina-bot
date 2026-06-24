@@ -109,6 +109,7 @@ GOOGLE_API_KEY=your_key_here
 GEMINI_CHAT_MODEL=gemini-3.5-flash
 GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
 LUMINA_APP_PASSWORD=
+LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE=5
 LUMINA_MAX_QUESTIONS_PER_MINUTE=20
 LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
@@ -222,6 +223,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
 | `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
+| `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
 | `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE` | Process-wide Streamlit question limit across sessions. Defaults to `120`; use `0` to disable |
 | `LUMINA_AUDIT_LOG_PATH` | Optional JSONL audit log path. Leave blank to disable audit logging |
@@ -232,7 +234,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 
 - CLI ChromaDB data is stored in `chroma_db/` and ignored by Git.
 - Streamlit uploads use a temporary in-memory Chroma collection for each processed document/settings combination.
-- CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters.
+- CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters without storing raw filenames in collection names.
 - The CLI reuses a persisted collection when it already contains vectors. Use `--rebuild-index` to force a fresh embedding pass.
 - Uploaded files are processed locally.
 - Embeddings and answers are generated through Google Gemini APIs, so document chunks are sent to the configured external model provider.
