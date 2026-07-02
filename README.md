@@ -107,7 +107,7 @@ Then edit `.env`:
 ```env
 GOOGLE_API_KEY=your_key_here
 GEMINI_CHAT_MODEL=gemini-3.5-flash
-GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
 LUMINA_APP_PASSWORD=
 LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE=5
 LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE=30
@@ -115,7 +115,7 @@ LUMINA_MAX_QUESTIONS_PER_MINUTE=20
 LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
 LUMINA_ALLOWED_CHAT_MODELS=gemini-3.5-flash
-LUMINA_ALLOWED_EMBEDDING_MODELS=models/gemini-embedding-2
+LUMINA_ALLOWED_EMBEDDING_MODELS=gemini-embedding-2
 ```
 
 ## Streamlit Usage
@@ -193,6 +193,8 @@ $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unitte
 
 To run the live smoke test in GitHub Actions, add a repository secret named `GOOGLE_API_KEY`, then run the **Live Gemini Smoke** workflow manually from the Actions tab.
 
+Before every production deploy, run the live smoke test with the same `GEMINI_CHAT_MODEL` and `GEMINI_EMBEDDING_MODEL` values that will be deployed. Gemini model availability can differ by project and can change over time; do not ship if this test fails.
+
 ## Production Deployment
 
 Build and run with Docker:
@@ -222,7 +224,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | --- | --- |
 | `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
 | `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
-| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
+| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `gemini-embedding-2` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
 | `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE` | Process-wide password attempt limit across Streamlit sessions. Defaults to `30`; use `0` to disable |
