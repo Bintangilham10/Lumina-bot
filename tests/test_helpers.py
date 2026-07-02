@@ -43,12 +43,12 @@ class HelperTests(unittest.TestCase):
             "abcdef1234567890fedcba",
             1200,
             180,
-            "models/gemini-embedding-2",
+            "gemini-embedding-2",
         )
 
         self.assertTrue(
             name.startswith(
-                "lumina-abcdef1234567890-cs1200-co180-models-gemini"
+                "lumina-abcdef1234567890-cs1200-co180-gemini"
             )
         )
         self.assertNotIn("very-long-document-name", name)
@@ -59,14 +59,14 @@ class HelperTests(unittest.TestCase):
             "abcdef1234567890fedcba",
             1200,
             180,
-            "models/gemini-embedding-2",
+            "gemini-embedding-2",
         )
         second = document_collection_name(
             "Different Sensitive Name",
             "abcdef1234567890fedcba",
             1200,
             180,
-            "models/gemini-embedding-2",
+            "gemini-embedding-2",
         )
 
         self.assertEqual(first, second)
