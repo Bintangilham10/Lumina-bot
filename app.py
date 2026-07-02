@@ -35,13 +35,16 @@ from utils.security import (
     ALLOWED_CHAT_MODELS_ENV_VAR,
     ALLOWED_EMBEDDING_MODELS_ENV_VAR,
     DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE,
+    DEFAULT_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE,
     DEFAULT_MAX_QUESTIONS_PER_MINUTE,
     DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE,
     MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
+    MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
     MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR,
     MAX_QUESTIONS_PER_MINUTE_ENV_VAR,
     RATE_LIMIT_WINDOW_SECONDS,
     active_rate_limit_timestamps,
+    check_global_auth_rate_limit,
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
@@ -417,9 +420,10 @@ def authenticate_session() -> bool:
     st.title(APP_TITLE)
     password = st.text_input("Password", type="password")
     if st.button("Masuk", use_container_width=True):
+        now = time.time()
         allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
             list(st.session_state.auth_attempt_timestamps),
-            time.time(),
+            now,
             int_from_env(
                 MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
                 DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE,
@@ -433,14 +437,33 @@ def authenticate_session() -> bool:
             )
             return False
 
-        if verify_password(password, expected_password):
-            st.session_state.authenticated = True
-            st.session_state.auth_attempt_timestamps = []
-            audit_event("auth_success")
-            st.rerun()
-            return True
-        audit_event("auth_failure")
-        st.error("Password tidak cocok.")
+        global_allowed, global_retry_after = check_global_auth_rate_limit(
+            now,
+            int_from_env(
+                MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR,
+                DEFAULT_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE,
+            ),
+            RATE_LIMIT_WINDOW_SECONDS,
+        )
+        if not global_allowed:
+            audit_event(
+                "auth_global_rate_limited",
+                retry_after_seconds=global_retry_after,
+            )
+            st.warning(
+                f"Layanan sedang sibuk. Coba lagi dalam {global_retry_after} detik."
+            )
+            return False
+
+        if not verify_password(password, expected_password):
+            audit_event("auth_failure")
+            st.error("Password tidak cocok.")
+            return False
+
+        st.session_state.authenticated = True
+        st.session_state.auth_attempt_timestamps = []
+        audit_event("auth_success")
+        st.rerun()
     return False
 
 
