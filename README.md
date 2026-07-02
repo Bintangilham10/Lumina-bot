@@ -160,7 +160,7 @@ Useful CLI options:
 | `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
 | `--temperature` | Response randomness from `0` to `1`. Default: `0.2` |
 | `--hide-sources` | Hide source snippets in terminal answers |
-| `--max-file-size-mb` | Reject files larger than this before indexing. Default: `50`; use `0` to disable |
+| `--max-file-size-mb` | Reject files larger than this before indexing. Default: `55`; use `0` to disable |
 | `--max-pages` | Reject documents with more pages/sections than this. Default: `500`; use `0` to disable |
 | `--max-chunks` | Reject documents that produce more chunks than this. Default: `1000`; use `0` to disable |
 | `--debug` | Print full tracebacks for troubleshooting |
