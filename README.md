@@ -237,7 +237,8 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 ## Notes
 
 - CLI ChromaDB data is stored in `chroma_db/` and ignored by Git.
-- Streamlit uploads use a temporary in-memory Chroma collection for each processed document/settings combination.
+- Streamlit uploads use a process-local cached Chroma collection keyed by document hash, chunking settings, and embedding model so identical documents are not re-embedded within the same replica.
+- The current Streamlit cache and process-wide rate limits are safe only for single-replica deployments. Multi-replica deployments need a shared backing store such as Redis for rate-limit counters and vector/index cache coordination.
 - CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters without storing raw filenames in collection names.
 - The CLI reuses a persisted collection when it already contains vectors. Use `--rebuild-index` to force a fresh embedding pass.
 - Uploaded files are processed locally.
