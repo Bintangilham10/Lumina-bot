@@ -15,12 +15,18 @@ ALLOWED_EMBEDDING_MODELS_ENV_VAR = "LUMINA_ALLOWED_EMBEDDING_MODELS"
 MAX_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_QUESTIONS_PER_MINUTE"
 MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE"
 MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE"
+MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR = (
+    "LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE"
+)
 DEFAULT_MAX_QUESTIONS_PER_MINUTE = 20
 DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE = 120
 DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE = 5
+DEFAULT_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE = 30
 RATE_LIMIT_WINDOW_SECONDS = 60
 _global_question_timestamps: list[float] = []
+_global_auth_timestamps: list[float] = []
 _global_rate_limit_lock = Lock()
+_global_auth_lock = Lock()
 
 
 def configured_password() -> str:
@@ -111,4 +117,23 @@ def check_global_rate_limit(
             window_seconds,
         )
         _global_question_timestamps = timestamps
+        return allowed, retry_after
+
+
+def check_global_auth_rate_limit(
+    now: float,
+    max_events: int,
+    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+) -> tuple[bool, int]:
+    """Apply a process-wide auth attempt rate limit across Streamlit sessions."""
+    global _global_auth_timestamps
+
+    with _global_auth_lock:
+        allowed, timestamps, retry_after = check_rate_limit(
+            list(_global_auth_timestamps),
+            now,
+            max_events,
+            window_seconds,
+        )
+        _global_auth_timestamps = timestamps
         return allowed, retry_after
