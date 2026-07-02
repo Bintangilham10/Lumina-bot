@@ -13,7 +13,7 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Streaming answers in the web chat
 - Staged upload progress for document processing
 - Web controls for chunking, retrieval, relevance threshold, model, temperature, and indexing limits
-- Optional Streamlit password gate, per-session/global question rate limiting, and audit logging
+- Optional Streamlit password gate, per-session/global auth and question rate limiting, and audit logging
 - Privacy-safe audit metrics for processing latency, answer latency, and approximate context size
 - File signature checks for PDF, DOCX, and EPUB uploads
 - ZIP safety limits for DOCX and EPUB uploads to reduce decompression-bomb risk
@@ -110,6 +110,7 @@ GEMINI_CHAT_MODEL=gemini-3.5-flash
 GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
 LUMINA_APP_PASSWORD=
 LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE=5
+LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE=30
 LUMINA_MAX_QUESTIONS_PER_MINUTE=20
 LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
@@ -224,6 +225,7 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
 | `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
+| `LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE` | Process-wide password attempt limit across Streamlit sessions. Defaults to `30`; use `0` to disable |
 | `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE` | Process-wide Streamlit question limit across sessions. Defaults to `120`; use `0` to disable |
 | `LUMINA_AUDIT_LOG_PATH` | Optional JSONL audit log path. Leave blank to disable audit logging |
