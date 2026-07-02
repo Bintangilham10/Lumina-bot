@@ -194,6 +194,43 @@ def uploaded_file_hash(uploaded_file) -> str:
     return hashlib.sha256(uploaded_file.getbuffer()).hexdigest()
 
 
+def document_embedding_cache_key(
+    file_hash: str,
+    settings: AppSettings,
+) -> tuple[str, int, int, str]:
+    """Return the inputs that determine document embeddings."""
+    return (
+        file_hash,
+        settings.chunk_size,
+        settings.chunk_overlap,
+        settings.embedding_model,
+    )
+
+
+@st.cache_resource(show_spinner=False)
+def get_cached_vector_store(
+    file_hash: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    embedding_model: str,
+    _chunks: tuple,
+):
+    """Create or reuse a process-local vector store for identical embeddings."""
+    collection_name = document_collection_name(
+        "uploaded",
+        file_hash,
+        chunk_size,
+        chunk_overlap,
+        embedding_model or None,
+    )
+    return create_vector_store(
+        list(_chunks),
+        collection_name=collection_name,
+        persist_directory=None,
+        embedding_model=embedding_model or None,
+    )
+
+
 def render_processing_step(status, progress, step_index: int) -> None:
     percent, label = PROCESSING_STEPS[step_index]
     status.write(label)
@@ -235,20 +272,10 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
                 max_pages=settings.max_pages,
                 max_chunks=settings.max_chunks,
             )
-            collection_name = document_collection_name(
-                Path(uploaded_file.name).stem,
-                file_hash,
-                settings.chunk_size,
-                settings.chunk_overlap,
-                settings.embedding_model or None,
-            )
-
             render_processing_step(status, progress, 3)
-            vector_store = create_vector_store(
-                chunks,
-                collection_name=collection_name,
-                persist_directory=None,
-                embedding_model=settings.embedding_model or None,
+            vector_store = get_cached_vector_store(
+                *document_embedding_cache_key(file_hash, settings),
+                tuple(chunks),
             )
 
             render_processing_step(status, progress, 4)
