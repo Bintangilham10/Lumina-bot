@@ -8,7 +8,9 @@ from unittest.mock import patch
 from langchain_core.documents import Document
 
 from app import (
+    AppSettings,
     PROCESSING_STEPS,
+    document_embedding_cache_key,
     evaluate_auth_attempt_limit,
     evaluate_question_rate_limit,
     format_source_snippet,
@@ -104,6 +106,57 @@ class AppFormattingTests(unittest.TestCase):
         self.assertNotIn("Traceback", answer_message)
         self.assertIn("Gagal memproses dokumen", document_message)
         self.assertIn("Gagal menjawab pertanyaan", answer_message)
+
+    def test_document_embedding_cache_key_uses_only_embedding_inputs(self) -> None:
+        base = AppSettings(
+            chunk_size=1000,
+            chunk_overlap=200,
+            retrieval_k=4,
+            min_relevance_score=0.0,
+            chat_model="gemini-3.5-flash",
+            embedding_model="gemini-embedding-2",
+            temperature=0.2,
+            max_file_size_mb=55,
+            max_pages=500,
+            max_chunks=1000,
+        )
+        changed_retrieval = AppSettings(
+            chunk_size=1000,
+            chunk_overlap=200,
+            retrieval_k=8,
+            min_relevance_score=0.7,
+            chat_model="other-chat",
+            embedding_model="gemini-embedding-2",
+            temperature=0.9,
+            max_file_size_mb=10,
+            max_pages=20,
+            max_chunks=30,
+        )
+        changed_embedding = AppSettings(
+            chunk_size=1200,
+            chunk_overlap=200,
+            retrieval_k=4,
+            min_relevance_score=0.0,
+            chat_model="gemini-3.5-flash",
+            embedding_model="other-embedding",
+            temperature=0.2,
+            max_file_size_mb=55,
+            max_pages=500,
+            max_chunks=1000,
+        )
+
+        self.assertEqual(
+            document_embedding_cache_key("hash-a", base),
+            document_embedding_cache_key("hash-a", changed_retrieval),
+        )
+        self.assertNotEqual(
+            document_embedding_cache_key("hash-a", base),
+            document_embedding_cache_key("hash-b", base),
+        )
+        self.assertNotEqual(
+            document_embedding_cache_key("hash-a", base),
+            document_embedding_cache_key("hash-a", changed_embedding),
+        )
 
     def test_auth_attempt_limit_blocks_when_window_is_full(self) -> None:
         allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
