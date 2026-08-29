@@ -191,7 +191,7 @@ def configure_page() -> None:
 
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] small { color: #899080; }
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] > div:last-child { color: #899080 !important; }
-
+    
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button {
                 color: var(--lumina-ink);
                 background: var(--lumina-lime);
