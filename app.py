@@ -191,6 +191,7 @@ def configure_page() -> None:
 
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] small { color: #899080; }
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] > div:last-child { color: #899080 !important; }
+            [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] > div:last-child span { color: #899080 !important; }
     
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button {
                 color: var(--lumina-ink);
@@ -199,6 +200,8 @@ def configure_page() -> None:
                 border-radius: 999px;
                 font-weight: 800;
             }
+
+            [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button p { color: var(--lumina-ink) !important; }
 
             [data-testid="stSidebar"] [data-testid="stExpander"] {
                 background: #22251f;
@@ -218,6 +221,33 @@ def configure_page() -> None:
                 border-color: #4a5142;
             }
 
+            [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] {
+                background: #2a2d26;
+                border: 1px solid #4a5142;
+                border-radius: 10px;
+                overflow: hidden;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] button {
+                background: #34392f;
+                border-left: 1px solid #4a5142;
+                color: #e9efdd;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] button:hover {
+                background: var(--lumina-lime);
+                color: var(--lumina-ink);
+            }
+
+            [data-testid="stSidebar"] [data-baseweb="slider"] [role="slider"] {
+                background: var(--lumina-lime);
+            }
+
+            [data-testid="stSidebar"] [data-baseweb="slider"] div[style*="height: 0.25rem"] {
+                background-color: #59604f !important;
+                background-image: none !important;
+            }
+
             [data-testid="stSidebar"] [data-testid="stButton"] button {
                 background: transparent;
                 color: #b9c0b0;
@@ -229,6 +259,58 @@ def configure_page() -> None:
                 border-color: var(--lumina-lime);
                 color: var(--lumina-lime);
             }
+
+            [data-testid="stSidebar"] [data-testid="stStatusWidget"] {
+                background: #242720;
+                border: 1px solid #363b31;
+                border-radius: 13px;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stProgressBar"] > div > div {
+                background: var(--lumina-lime);
+            }
+
+            [data-testid="stSidebar"] [data-testid="stProgressBar"] label,
+            [data-testid="stSidebar"] [data-testid="stStatusWidget"] p {
+                color: #c9cec1;
+            }
+
+            [data-testid="stAlert"] {
+                border-radius: 12px;
+                box-shadow: none;
+            }
+
+            .stButton > button {
+                background: var(--lumina-ink);
+                color: #f7f8ef;
+                border-radius: 999px;
+                font-weight: 700;
+            }
+
+            [data-testid="stChatInput"] button {
+                background: var(--lumina-lime);
+                border-radius: 9px;
+                color: var(--lumina-ink);
+            }
+
+            [data-testid="stChatInput"] button:hover { background: #c9e65a; }
+
+            [data-testid="stExpander"] details summary p {
+                font-size: 0.78rem;
+                letter-spacing: 0.01em;
+            }
+
+            .lumina-auth-header { align-items: center; display: flex; gap: 0.7rem; margin: 4.5rem auto 2.4rem; max-width: 520px; }
+            .lumina-auth-header .lumina-brand-mark { flex: 0 0 auto; }
+            .lumina-auth-name { color: var(--lumina-ink); font-size: 1rem; font-weight: 800; letter-spacing: -0.03em; }
+            .lumina-auth-note { color: var(--lumina-muted); font-family: 'DM Mono', monospace; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; }
+            .lumina-auth-kicker { color: var(--lumina-lime-deep); font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.14em; margin: 0 auto 0.8rem; max-width: 520px; text-transform: uppercase; }
+            .lumina-auth-title { color: var(--lumina-ink); font-size: clamp(2.4rem, 5vw, 4.1rem); font-weight: 800; letter-spacing: -0.075em; line-height: 0.98; margin: 0 auto; max-width: 520px; }
+            .lumina-auth-copy { color: var(--lumina-muted); font-size: 0.9rem; line-height: 1.65; margin: 1rem auto 2rem; max-width: 520px; }
+            [data-testid="stTextInput"] { margin: 0 auto; max-width: 520px; }
+            [data-testid="stTextInput"] input { background: var(--lumina-white); border: 1px solid #c8cabf; border-radius: 12px; }
+            .lumina-auth-action { margin: 0 auto; max-width: 520px; }
+            .lumina-auth-action + div [data-testid="stButton"] button { background: var(--lumina-ink); color: #f7f8ef; width: 100%; }
 
             .lumina-sidebar-brand {
                 display: flex;
@@ -336,6 +418,7 @@ def configure_page() -> None:
             .lumina-meta-footer { border-top: 1px solid #3b4136; color: #8e9888; font-family: 'DM Mono', monospace; font-size: 0.62rem; line-height: 1.45; padding-top: 0.75rem; word-break: break-word; }
             .lumina-ready { color: var(--lumina-lime); font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.04em; margin: 0.6rem 0 0.9rem; }
             .lumina-ready span { color: #8ca835; font-size: 0.9rem; margin-right: 0.25rem; }
+            .lumina-caption { color: var(--lumina-muted); font-size: 0.74rem; line-height: 1.5; margin: 0 0 0.7rem; }
 
             [data-testid="stChatMessage"] { border-top: 1px solid var(--lumina-line); margin: 0 auto; max-width: 930px; padding: 1.45rem 0; }
             [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p { color: var(--lumina-ink); font-size: 0.92rem; line-height: 1.72; }
@@ -559,6 +642,10 @@ def process_uploaded_document(uploaded_file, settings: AppSettings) -> None:
 
 def render_settings_controls() -> AppSettings:
     with st.expander("Tuning indeks", expanded=False):
+        st.markdown(
+            '<div class="lumina-caption">Atur seberapa luas Lumina membaca konteks sebelum menjawab.</div>',
+            unsafe_allow_html=True,
+        )
         chunk_size = int(
             st.number_input(
                 "Ukuran chunk",
@@ -671,9 +758,20 @@ def authenticate_session() -> bool:
     if st.session_state.authenticated:
         return True
 
-    st.title(APP_TITLE)
-    password = st.text_input("Password", type="password")
-    if st.button("Masuk", use_container_width=True):
+    st.markdown(
+        """
+        <div class="lumina-auth-header">
+            <div class="lumina-brand-mark">L</div>
+            <div><div class="lumina-auth-name">Lumina Doc</div><div class="lumina-auth-note">private document intelligence</div></div>
+        </div>
+        <div class="lumina-auth-kicker">Restricted workspace / access required</div>
+        <h1 class="lumina-auth-title">Buka ruang<br>kerjamu.</h1>
+        <p class="lumina-auth-copy">Masukkan access code untuk melanjutkan ke dokumen dan percakapan yang tersimpan di sesi ini.</p>
+        """,
+        unsafe_allow_html=True,
+    )
+    password = st.text_input("Access code", type="password")
+    if st.button("Buka ruang kerja", use_container_width=True):
         now = time.time()
         allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
             list(st.session_state.auth_attempt_timestamps),
@@ -947,7 +1045,7 @@ def render_chat() -> None:
                     for source in message["sources"]:
                         st.markdown(source, unsafe_allow_html=True)
 
-    question = st.chat_input("Tulis pertanyaan tentang dokumen...")
+    question = st.chat_input("Tanyakan sesuatu tentang dokumen ini...")
     if not question:
         return
     if not rate_limit_question():
