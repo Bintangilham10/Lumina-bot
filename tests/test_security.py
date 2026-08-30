@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from utils.security import (
     active_rate_limit_timestamps,
+    check_global_auth_rate_limit,
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
@@ -99,6 +100,32 @@ class SecurityHelperTests(unittest.TestCase):
 
         self.assertTrue(allowed)
         self.assertEqual(retry_after, 0)
+
+    def test_check_global_auth_rate_limit_blocks_across_sessions(self) -> None:
+        with patch("utils.security._global_auth_timestamps", []):
+            first_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=1.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertTrue(first_session_allowed)
+            self.assertEqual(retry_after, 0)
+
+            second_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=2.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertTrue(second_session_allowed)
+            self.assertEqual(retry_after, 0)
+
+            new_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=3.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertFalse(new_session_allowed)
+            self.assertEqual(retry_after, 58)
 
 
 if __name__ == "__main__":

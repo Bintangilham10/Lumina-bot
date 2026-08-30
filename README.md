@@ -13,7 +13,7 @@ App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 - Streaming answers in the web chat
 - Staged upload progress for document processing
 - Web controls for chunking, retrieval, relevance threshold, model, temperature, and indexing limits
-- Optional Streamlit password gate, per-session/global question rate limiting, and audit logging
+- Optional Streamlit password gate, per-session/global auth and question rate limiting, and audit logging
 - Privacy-safe audit metrics for processing latency, answer latency, and approximate context size
 - File signature checks for PDF, DOCX, and EPUB uploads
 - ZIP safety limits for DOCX and EPUB uploads to reduce decompression-bomb risk
@@ -107,14 +107,15 @@ Then edit `.env`:
 ```env
 GOOGLE_API_KEY=your_key_here
 GEMINI_CHAT_MODEL=gemini-3.5-flash
-GEMINI_EMBEDDING_MODEL=models/gemini-embedding-2
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
 LUMINA_APP_PASSWORD=
 LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE=5
+LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE=30
 LUMINA_MAX_QUESTIONS_PER_MINUTE=20
 LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
 LUMINA_ALLOWED_CHAT_MODELS=gemini-3.5-flash
-LUMINA_ALLOWED_EMBEDDING_MODELS=models/gemini-embedding-2
+LUMINA_ALLOWED_EMBEDDING_MODELS=gemini-embedding-2
 ```
 
 ## Streamlit Usage
@@ -159,7 +160,7 @@ Useful CLI options:
 | `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
 | `--temperature` | Response randomness from `0` to `1`. Default: `0.2` |
 | `--hide-sources` | Hide source snippets in terminal answers |
-| `--max-file-size-mb` | Reject files larger than this before indexing. Default: `50`; use `0` to disable |
+| `--max-file-size-mb` | Reject files larger than this before indexing. Default: `55`; use `0` to disable |
 | `--max-pages` | Reject documents with more pages/sections than this. Default: `500`; use `0` to disable |
 | `--max-chunks` | Reject documents that produce more chunks than this. Default: `1000`; use `0` to disable |
 | `--debug` | Print full tracebacks for troubleshooting |
@@ -192,6 +193,8 @@ $env:LUMINA_LIVE_TEST="1"; $env:GOOGLE_API_KEY="your_key_here"; python -m unitte
 
 To run the live smoke test in GitHub Actions, add a repository secret named `GOOGLE_API_KEY`, then run the **Live Gemini Smoke** workflow manually from the Actions tab.
 
+Before every production deploy, run the live smoke test with the same `GEMINI_CHAT_MODEL` and `GEMINI_EMBEDDING_MODEL` values that will be deployed. Gemini model availability can differ by project and can change over time; do not ship if this test fails.
+
 ## Production Deployment
 
 Build and run with Docker:
@@ -221,9 +224,10 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | --- | --- |
 | `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
 | `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
-| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `models/gemini-embedding-2` |
+| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `gemini-embedding-2` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
 | `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
+| `LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE` | Process-wide password attempt limit across Streamlit sessions. Defaults to `30`; use `0` to disable |
 | `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE` | Process-wide Streamlit question limit across sessions. Defaults to `120`; use `0` to disable |
 | `LUMINA_AUDIT_LOG_PATH` | Optional JSONL audit log path. Leave blank to disable audit logging |
@@ -233,7 +237,8 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 ## Notes
 
 - CLI ChromaDB data is stored in `chroma_db/` and ignored by Git.
-- Streamlit uploads use a temporary in-memory Chroma collection for each processed document/settings combination.
+- Streamlit uploads use a process-local cached Chroma collection keyed by document hash, chunking settings, and embedding model so identical documents are not re-embedded within the same replica.
+- The current Streamlit cache and process-wide rate limits are safe only for single-replica deployments. Multi-replica deployments need a shared backing store such as Redis for rate-limit counters and vector/index cache coordination.
 - CLI vector collections include the document hash, embedding model, and chunking settings to avoid reusing a collection for different content or indexing parameters without storing raw filenames in collection names.
 - The CLI reuses a persisted collection when it already contains vectors. Use `--rebuild-index` to force a fresh embedding pass.
 - Uploaded files are processed locally.
