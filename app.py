@@ -488,12 +488,14 @@ def classify_user_error(exc: Exception, operation: str) -> str:
 def initialize_state() -> None:
     defaults = {
         "authenticated": False,
+        "auth_timestamp": 0.0,
         "messages": [],
         "qa_chain": None,
         "document_meta": None,
         "processed_file_id": None,
         "auth_attempt_timestamps": [],
         "question_timestamps": [],
+        "uploader_key": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -769,7 +771,20 @@ def authenticate_session() -> bool:
     expected_password = configured_password()
     if not expected_password:
         return True
+
+    session_lifetime_minutes = int_from_env(
+        "LUMINA_SESSION_LIFETIME_MINUTES",
+        120,
+    )
+    now = time.time()
     if st.session_state.authenticated:
+        if session_lifetime_minutes > 0:
+            elapsed = now - st.session_state.get("auth_timestamp", now)
+            if elapsed > session_lifetime_minutes * 60:
+                st.session_state.authenticated = False
+                st.session_state.messages = []
+                st.warning("Sesi telah kedaluwarsa karena batas waktu keamanan. Silakan masuk kembali.")
+                return False
         return True
 
     st.markdown(
@@ -827,6 +842,7 @@ def authenticate_session() -> bool:
             return False
 
         st.session_state.authenticated = True
+        st.session_state.auth_timestamp = now
         st.session_state.auth_attempt_timestamps = []
         audit_event("auth_success")
         st.rerun()
@@ -949,6 +965,7 @@ def render_sidebar() -> None:
             "Tambah dokumen",
             type=["pdf", "docx", "epub", "txt", "md"],
             accept_multiple_files=False,
+            key=f"doc_uploader_{st.session_state.get('uploader_key', 0)}",
         )
 
         if uploaded_file is not None:
@@ -997,6 +1014,7 @@ def render_sidebar() -> None:
 
             if st.button("Tutup dokumen aktif", use_container_width=True):
                 reset_document_state()
+                st.session_state.uploader_key = st.session_state.get("uploader_key", 0) + 1
                 st.rerun()
 
         if st.button("Bersihkan percakapan", use_container_width=True):
