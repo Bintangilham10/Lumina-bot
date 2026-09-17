@@ -10,9 +10,11 @@ from langchain_core.documents import Document
 from app import (
     AppSettings,
     PROCESSING_STEPS,
+    classify_user_error,
     document_embedding_cache_key,
     evaluate_auth_attempt_limit,
     evaluate_question_rate_limit,
+    export_chat_markdown,
     format_source_snippet,
     format_sources,
     render_processing_step,
@@ -113,8 +115,8 @@ class AppFormattingTests(unittest.TestCase):
             chunk_overlap=200,
             retrieval_k=4,
             min_relevance_score=0.0,
-            chat_model="gemini-3.5-flash",
-            embedding_model="gemini-embedding-2",
+            chat_model="gemini-1.5-flash",
+            embedding_model="text-embedding-004",
             temperature=0.2,
             max_file_size_mb=55,
             max_pages=500,
@@ -126,7 +128,7 @@ class AppFormattingTests(unittest.TestCase):
             retrieval_k=8,
             min_relevance_score=0.7,
             chat_model="other-chat",
-            embedding_model="gemini-embedding-2",
+            embedding_model="text-embedding-004",
             temperature=0.9,
             max_file_size_mb=10,
             max_pages=20,
@@ -137,7 +139,7 @@ class AppFormattingTests(unittest.TestCase):
             chunk_overlap=200,
             retrieval_k=4,
             min_relevance_score=0.0,
-            chat_model="gemini-3.5-flash",
+            chat_model="gemini-1.5-flash",
             embedding_model="other-embedding",
             temperature=0.2,
             max_file_size_mb=55,
@@ -197,6 +199,25 @@ class AppFormattingTests(unittest.TestCase):
         self.assertEqual(timestamps, [1.0, 2.0])
         self.assertEqual(retry_after, 58)
         self.assertEqual(limit_scope, "session")
+
+    def test_classify_user_error_identifies_known_issues(self) -> None:
+        self.assertIn("Kunci API", classify_user_error(Exception("401 unauthorized invalid api key"), "op"))
+        self.assertIn("Batas kuota", classify_user_error(Exception("429 resource_exhausted quota"), "op"))
+        self.assertIn("kebijakan keamanan", classify_user_error(Exception("safety blocked"), "op"))
+        self.assertIn("tidak ditemukan", classify_user_error(Exception("404 not found"), "op"))
+        self.assertEqual(classify_user_error(Exception("other mystery error"), "question_answering"), user_safe_error_message("question_answering"))
+
+    def test_export_chat_markdown_formats_conversation(self) -> None:
+        messages = [
+            {"role": "user", "content": "Halo apa isi dokumen?"},
+            {"role": "assistant", "content": "Dokumen ini tentang AI.", "sources": ["source 1"]},
+        ]
+        markdown = export_chat_markdown(messages, "doc.pdf")
+
+        self.assertIn("# Riwayat Tanya Jawab Lumina Doc", markdown)
+        self.assertIn("**Dokumen:** doc.pdf", markdown)
+        self.assertIn("### Pengguna:\nHalo apa isi dokumen?", markdown)
+        self.assertIn("### Lumina Doc:\nDokumen ini tentang AI.", markdown)
 
 
 if __name__ == "__main__":
