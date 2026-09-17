@@ -234,10 +234,18 @@ def _chain_llm(qa_chain: DocumentQaChain) -> ChatGoogleGenerativeAI:
         raise ValueError("QA chain does not expose an LLM for streaming.") from exc
 
 
+MAX_QUESTION_LENGTH = 4000
+
+
 def _normalize_question(question: str) -> str:
     question = question.strip()
     if not question:
         raise ValueError("Question cannot be empty.")
+    if len(question) > MAX_QUESTION_LENGTH:
+        raise ValueError(
+            f"Question is too long ({len(question)} characters). "
+            f"Maximum allowed length is {MAX_QUESTION_LENGTH} characters."
+        )
     return question
 
 
@@ -301,6 +309,19 @@ def _looks_indonesian(text: str) -> bool:
         "berapa",
         "jelaskan",
         "sebutkan",
+        "ringkas",
+        "tolong",
+        "buatkan",
+        "tuliskan",
+        "isi",
+        "tentang",
+        "apakah",
+        "ada",
+        "pada",
+        "untuk",
+        "dari",
+        "ini",
+        "itu",
         "dokumen",
         "dalam",
         "adalah",
