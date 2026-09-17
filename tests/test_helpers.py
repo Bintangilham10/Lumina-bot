@@ -29,6 +29,11 @@ class HelperTests(unittest.TestCase):
 
         self.assertEqual(clean_text(text), "First line\nSecond line\nThird line")
 
+    def test_clean_text_normalizes_unicode_spaces_and_bom(self) -> None:
+        text = "\ufeffHello\xa0world\u200b and peace"
+
+        self.assertEqual(clean_text(text), "Hello world and peace")
+
     def test_safe_collection_name_normalizes_text_parts(self) -> None:
         name = safe_collection_name(["Lumina Doc", "File #1", "!!!"])
 
