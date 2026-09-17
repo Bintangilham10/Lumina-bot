@@ -1144,6 +1144,8 @@ def render_chat() -> None:
                 source_stats = document_text_stats(source_documents)
                 sources = format_sources(source_documents)
                 answer = str(st.write_stream(answer_stream)).strip()
+                if not answer:
+                    answer = "Tidak ditemukan informasi yang relevan di dokumen untuk menjawab pertanyaan ini."
                 if sources:
                     with st.expander("Sumber jawaban"):
                         for source in sources:
