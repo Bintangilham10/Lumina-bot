@@ -33,7 +33,7 @@ _global_auth_lock = Lock()
 def configured_password() -> str:
     """Return the optional app password configured by the operator."""
     load_dotenv()
-    return os.getenv(APP_PASSWORD_ENV_VAR, "").strip()
+    return os.getenv(APP_PASSWORD_ENV_VAR, "").strip().strip("'\"")
 
 
 def verify_password(candidate: str, expected: str) -> bool:
