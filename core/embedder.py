@@ -15,6 +15,7 @@ from utils.helpers import ensure_directory
 EMBEDDING_MODEL_ENV_VAR = "GEMINI_EMBEDDING_MODEL"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-004"
 DEFAULT_PERSIST_DIRECTORY = "chroma_db"
+DEFAULT_EMBEDDING_BATCH_SIZE = 100
 
 
 def resolve_embedding_model(model: str | None = None) -> str:
@@ -33,8 +34,9 @@ def create_vector_store(
     collection_name: str,
     persist_directory: str | Path | None = DEFAULT_PERSIST_DIRECTORY,
     embedding_model: str | None = None,
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
 ) -> Chroma:
-    """Create a Chroma vector store from document chunks."""
+    """Create a Chroma vector store from document chunks with cosine distance and batching."""
     if not chunks:
         raise ValueError("No chunks were provided for embedding.")
 
@@ -43,12 +45,21 @@ def create_vector_store(
         persist_path = str(ensure_directory(persist_directory))
 
     embeddings = create_embeddings(embedding_model)
-    return Chroma.from_documents(
-        documents=chunks,
+    first_batch = chunks[:batch_size]
+    store = Chroma.from_documents(
+        documents=first_batch,
         embedding=embeddings,
         collection_name=collection_name,
         persist_directory=persist_path,
+        collection_metadata={"hnsw:space": "cosine"},
     )
+
+    remaining_chunks = chunks[batch_size:]
+    if remaining_chunks:
+        for i in range(0, len(remaining_chunks), batch_size):
+            store.add_documents(remaining_chunks[i : i + batch_size])
+
+    return store
 
 
 def vector_store_document_count(vector_store: Chroma) -> int:
@@ -66,10 +77,11 @@ def load_vector_store(
     persist_directory: str | Path = DEFAULT_PERSIST_DIRECTORY,
     embedding_model: str | None = None,
 ) -> Chroma:
-    """Load an existing Chroma vector store collection."""
+    """Load an existing Chroma vector store collection with cosine distance."""
     directory = ensure_directory(persist_directory)
     return Chroma(
         collection_name=collection_name,
         embedding_function=create_embeddings(embedding_model),
         persist_directory=str(directory),
+        collection_metadata={"hnsw:space": "cosine"},
     )
