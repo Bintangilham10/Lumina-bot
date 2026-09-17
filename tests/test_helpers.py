@@ -107,7 +107,9 @@ class HelperTests(unittest.TestCase):
         self.assertTrue(is_supported_file("Document.PDF"))
         self.assertTrue(is_supported_file("Document.Docx"))
         self.assertTrue(is_supported_file("Document.EPUB"))
-        self.assertFalse(is_supported_file("Document.txt"))
+        self.assertTrue(is_supported_file("Document.txt"))
+        self.assertTrue(is_supported_file("Document.MD"))
+        self.assertFalse(is_supported_file("Document.xyz"))
 
     def test_file_sha256_hashes_file_content(self) -> None:
         content = b"Lumina Doc hash test"

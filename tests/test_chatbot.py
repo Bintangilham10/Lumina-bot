@@ -185,6 +185,29 @@ class ChatbotStreamingTests(unittest.TestCase):
         )
         self.assertNotIn("doc.pdf", context)
 
+    def test_stream_question_includes_conversation_history_in_prompt(self) -> None:
+        documents = [
+            Document(page_content="Penulis adalah Budi.", metadata={"page": 1}),
+        ]
+        llm = FakeLlm()
+        qa_chain = FakeQaChain(documents, llm)
+        history = [
+            {"role": "user", "content": "Siapa penulis dokumen ini?"},
+            {"role": "assistant", "content": "Penulis dokumen ini adalah Budi."},
+        ]
+
+        answer_stream, sources = stream_question(
+            qa_chain,
+            "Berapa usianya?",
+            chat_history=history,
+        )
+        _ = list(answer_stream)
+
+        self.assertIn("Conversation History:", llm.prompts[0])
+        self.assertIn("User: Siapa penulis dokumen ini?", llm.prompts[0])
+        self.assertIn("AI: Penulis dokumen ini adalah Budi.", llm.prompts[0])
+        self.assertIn("Question: Berapa usianya?", llm.prompts[0])
+
 
 if __name__ == "__main__":
     unittest.main()
