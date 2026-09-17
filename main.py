@@ -83,7 +83,7 @@ def relevance_score_value(value: str) -> float:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Lumina Doc - AI-powered document chatbot for PDF, DOCX, and EPUB files."
+        description="Lumina Doc - AI-powered document chatbot for PDF, DOCX, EPUB, TXT, and MD files."
     )
     parser.add_argument(
         "document",
@@ -314,6 +314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Pages/sections: {loaded.total_pages} | Chunks: {len(chunks)}\n"
         )
 
+        chat_history: list[dict] = []
         while True:
             question = input("You: ").strip()
             if question.lower() in {"exit", "quit", "q"}:
@@ -322,8 +323,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not question:
                 continue
 
-            response = ask_question(qa_chain, question)
-            print(f"AI: {response.get('result', '').strip()}\n")
+            response = ask_question(qa_chain, question, chat_history=chat_history)
+            answer_text = response.get("result", "").strip()
+            print(f"AI: {answer_text}\n")
+            chat_history.append({"role": "user", "content": question})
+            chat_history.append({"role": "assistant", "content": answer_text})
             if not args.hide_sources:
                 sources = format_cli_sources(
                     response.get("source_documents", []),
