@@ -231,11 +231,13 @@ def _load_docx(path: Path) -> list[Document]:
             current_parts.append(text)
         elif isinstance(item, docx.table.Table):
             table_rows: list[str] = []
-            for row in item.rows:
+            for r_idx, row in enumerate(item.rows):
                 cells = [clean_text(cell.text) for cell in row.cells]
                 row_text = " | ".join(cell for cell in cells if cell)
                 if row_text:
                     table_rows.append(row_text)
+                    if r_idx == 0 and len(item.rows) > 1:
+                        table_rows.append(" | ".join("---" for cell in cells if cell))
             if table_rows:
                 current_parts.append("\n".join(table_rows))
 
