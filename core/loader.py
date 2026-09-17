@@ -50,26 +50,34 @@ def load_document(file_path: str | Path) -> LoadedDocument:
     suffix = path.suffix.lower()
     _validate_file_signature(path, suffix)
     if suffix == ".pdf":
-        documents = _load_pdf(path)
+        documents, total_pages = _load_pdf(path)
     elif suffix == ".docx":
         documents = _load_docx(path)
+        total_pages = len(documents)
     elif suffix == ".epub":
         documents = _load_epub(path)
+        total_pages = len(documents)
     elif suffix in {".txt", ".md"}:
         documents = _load_text(path, suffix)
+        total_pages = len(documents)
     else:
         raise ValueError(
             f"Unsupported file type '{path.suffix}'. Supported formats: {supported_extensions_text()}."
         )
 
     if not documents:
+        if suffix == ".pdf":
+            raise ValueError(
+                "Tidak ada teks yang dapat dibaca di berkas PDF ini. "
+                "Jika berkas berupa pindaian (scan) atau gambar, pastikan dokumen telah diproses OCR terlebih dahulu."
+            )
         raise ValueError("No readable text was found in this document.")
 
     return LoadedDocument(
         filename=path.name,
         file_path=path.resolve(),
         file_type=suffix.lstrip(".").upper(),
-        total_pages=len(documents),
+        total_pages=total_pages,
         documents=documents,
     )
 
@@ -171,11 +179,17 @@ def _validate_zip_archive_safety(archive: zipfile.ZipFile, file_type: str) -> No
         )
 
 
-def _load_pdf(path: Path) -> list[Document]:
+def _load_pdf(path: Path) -> tuple[list[Document], int]:
     documents: list[Document] = []
     metadata = _base_metadata(path, "PDF")
 
     with fitz.open(path) as pdf:
+        if pdf.is_encrypted:
+            raise ValueError(
+                "Berkas PDF ini terkunci atau dilindungi password. "
+                "Buka proteksi dokumen PDF terlebih dahulu."
+            )
+        total_physical_pages = len(pdf)
         for index, page in enumerate(pdf, start=1):
             text = clean_text(page.get_text("text"))
             if text:
@@ -186,7 +200,7 @@ def _load_pdf(path: Path) -> list[Document]:
                     )
                 )
 
-    return documents
+    return documents, total_physical_pages
 
 
 def _load_docx(path: Path) -> list[Document]:
