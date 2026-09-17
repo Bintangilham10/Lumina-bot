@@ -342,6 +342,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nGoodbye.")
         return 0
+    except (FileNotFoundError, ValueError) as exc:
+        if args.debug:
+            traceback.print_exc()
+        else:
+            print(f"Error: {exc}", file=sys.stderr)
+        return 1
     except Exception as exc:
         if args.debug:
             traceback.print_exc()
