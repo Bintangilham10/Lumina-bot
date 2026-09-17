@@ -282,7 +282,7 @@ def _load_text(path: Path, suffix: str) -> list[Document]:
     file_type = suffix.lstrip(".").upper()
     metadata = _base_metadata(path, file_type)
     try:
-        content = path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError:
         content = path.read_text(encoding="latin-1", errors="replace")
 
