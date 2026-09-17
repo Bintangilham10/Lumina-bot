@@ -20,7 +20,7 @@ DEFAULT_MAX_CHUNKS = 1000
 def load_environment() -> str:
     """Load environment variables and return the Google API key."""
     load_dotenv()
-    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip().strip("'\"")
     if not api_key:
         raise RuntimeError(
             "GOOGLE_API_KEY is not configured. Copy .env.example to .env and add your key."
