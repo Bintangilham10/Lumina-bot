@@ -108,7 +108,7 @@ class DocumentQaChain:
 def resolve_chat_model(model: str | None = None) -> str:
     """Resolve the chat model from an explicit value, environment, or default."""
     resolved_model = model or os.getenv(CHAT_MODEL_ENV_VAR) or DEFAULT_CHAT_MODEL
-    return resolved_model.strip() or DEFAULT_CHAT_MODEL
+    return resolved_model.strip().strip("'\"") or DEFAULT_CHAT_MODEL
 
 
 def create_llm(
