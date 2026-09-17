@@ -9,6 +9,8 @@ from langchain_core.documents import Document
 from core.chatbot import (
     DocumentQaChain,
     ask_question,
+    build_retrieval_query,
+    format_chat_history,
     format_documents_context,
     stream_question,
 )
@@ -207,6 +209,28 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertIn("User: Siapa penulis dokumen ini?", llm.prompts[0])
         self.assertIn("AI: Penulis dokumen ini adalah Budi.", llm.prompts[0])
         self.assertIn("Question: Berapa usianya?", llm.prompts[0])
+
+    def test_build_retrieval_query_enriches_follow_up_cues(self) -> None:
+        history = [
+            {"role": "user", "content": "Jelaskan sistem autentikasi aplikasi"},
+            {"role": "assistant", "content": "Sistem menggunakan JWT token."},
+        ]
+
+        # Short question with cue "mengapa"
+        enriched = build_retrieval_query("Mengapa demikian?", history)
+        self.assertEqual(enriched, "Jelaskan sistem autentikasi aplikasi Mengapa demikian?")
+
+        # Short question with cue "contoh"
+        enriched_example = build_retrieval_query("Berikan contohnya", history)
+        self.assertEqual(enriched_example, "Jelaskan sistem autentikasi aplikasi Berikan contohnya")
+
+        # Independent long question without cues
+        standalone = build_retrieval_query("Bagaimana cara deploy aplikasi ke server kubernetes?", history)
+        self.assertIn("kubernetes", standalone)
+
+        # Without history
+        plain = build_retrieval_query("Apa itu JWT?", None)
+        self.assertEqual(plain, "Apa itu JWT?")
 
 
 if __name__ == "__main__":
