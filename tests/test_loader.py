@@ -25,7 +25,7 @@ class LoaderTests(unittest.TestCase):
 
     def test_load_document_rejects_unsupported_file_type(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
-            path = Path(temp_dir) / "notes.txt"
+            path = Path(temp_dir) / "notes.xyz"
             path.write_text("Hello world", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "Unsupported file type"):
@@ -155,6 +155,42 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(loaded.file_type, "EPUB")
             self.assertEqual(loaded.total_pages, 1)
             self.assertIn("Lumina EPUB content.", loaded.documents[0].page_content)
+
+    def test_load_document_reads_txt_content(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "notes.txt"
+            path.write_text("Lumina plain text content.", encoding="utf-8")
+
+            loaded = load_document(path)
+
+            self.assertEqual(loaded.file_type, "TXT")
+            self.assertEqual(loaded.total_pages, 1)
+            self.assertIn("Lumina plain text content.", loaded.documents[0].page_content)
+
+    def test_load_document_reads_markdown_sections(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "document.md"
+            path.write_text(
+                "# Bab 1: Pendahuluan\n\nIsi bab satu.\n\n# Bab 2: Metode\n\nIsi bab dua.",
+                encoding="utf-8",
+            )
+
+            loaded = load_document(path)
+
+            self.assertEqual(loaded.file_type, "MD")
+            self.assertEqual(loaded.total_pages, 2)
+            self.assertEqual(loaded.documents[0].metadata["section"], "Bab 1: Pendahuluan")
+            self.assertIn("Isi bab satu.", loaded.documents[0].page_content)
+            self.assertEqual(loaded.documents[1].metadata["section"], "Bab 2: Metode")
+            self.assertIn("Isi bab dua.", loaded.documents[1].page_content)
+
+    def test_load_document_rejects_binary_in_txt(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "corrupted.txt"
+            path.write_bytes(b"Hello\x00Binary\x00Data")
+
+            with self.assertRaisesRegex(ValueError, "valid TXT document"):
+                load_document(path)
 
 
 if __name__ == "__main__":
