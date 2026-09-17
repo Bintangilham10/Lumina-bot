@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import io
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from langchain_core.documents import Document
@@ -126,6 +126,16 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue().strip(), cli_safe_error_message())
         self.assertNotIn("api-key", stderr.getvalue())
         self.assertNotIn("secrets", stderr.getvalue())
+
+    def test_cli_displays_clear_message_for_file_not_found(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("main.load_environment", return_value="dummy_key"):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = run_cli(["non_existent_file.pdf"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error: Document not found", stderr.getvalue())
 
 
 if __name__ == "__main__":
