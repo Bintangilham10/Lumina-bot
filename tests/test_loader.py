@@ -192,6 +192,34 @@ class LoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "valid TXT document"):
                 load_document(path)
 
+    def test_load_document_rejects_encrypted_pdf(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "locked.pdf"
+            pdf = fitz.open()
+            page = pdf.new_page()
+            page.insert_text((72, 72), "Secret content.")
+            pdf.save(
+                path,
+                encryption=fitz.PDF_ENCRYPT_AES_256,
+                user_pw="password123",
+                owner_pw="owner123",
+            )
+            pdf.close()
+
+            with self.assertRaisesRegex(ValueError, "dilindungi password"):
+                load_document(path)
+
+    def test_load_document_informative_error_for_empty_pdf(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "empty.pdf"
+            pdf = fitz.open()
+            _ = pdf.new_page()  # blank page without text
+            pdf.save(path)
+            pdf.close()
+
+            with self.assertRaisesRegex(ValueError, "OCR"):
+                load_document(path)
+
 
 if __name__ == "__main__":
     unittest.main()
