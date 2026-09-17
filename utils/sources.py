@@ -62,15 +62,28 @@ def build_source_references(
 ) -> list[SourceReference]:
     """Build numbered, deduplicated source references from retrieved documents."""
     references: list[SourceReference] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: dict[tuple[str, str, str], int] = {}
 
     for document in documents:
         key = source_metadata(document)
+        score = source_relevance_score(document)
         if key in seen:
+            idx = seen[key]
+            existing = references[idx]
+            if score is not None and (existing.relevance_score is None or score > existing.relevance_score):
+                references[idx] = SourceReference(
+                    number=existing.number,
+                    key=existing.key,
+                    filename=existing.filename,
+                    page=existing.page,
+                    section=existing.section,
+                    snippet=existing.snippet,
+                    relevance_score=score,
+                )
             continue
-        seen.add(key)
 
         filename, page, section = key
+        seen[key] = len(references)
         references.append(
             SourceReference(
                 number=len(references) + 1,
@@ -79,7 +92,7 @@ def build_source_references(
                 page=page,
                 section=section,
                 snippet=normalize_source_snippet(document.page_content, snippet_length),
-                relevance_score=source_relevance_score(document),
+                relevance_score=score,
             )
         )
         if max_sources is not None and len(references) >= max_sources:
