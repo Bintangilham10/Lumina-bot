@@ -1,7 +1,8 @@
-"""Document loading utilities for PDF, DOCX, and EPUB files."""
+"""Document loading utilities for PDF, DOCX, EPUB, TXT, and MD files."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 import zipfile
@@ -52,8 +53,14 @@ def load_document(file_path: str | Path) -> LoadedDocument:
         documents = _load_pdf(path)
     elif suffix == ".docx":
         documents = _load_docx(path)
-    else:
+    elif suffix == ".epub":
         documents = _load_epub(path)
+    elif suffix in {".txt", ".md"}:
+        documents = _load_text(path, suffix)
+    else:
+        raise ValueError(
+            f"Unsupported file type '{path.suffix}'. Supported formats: {supported_extensions_text()}."
+        )
 
     if not documents:
         raise ValueError("No readable text was found in this document.")
@@ -88,7 +95,25 @@ def _validate_file_signature(path: Path, suffix: str) -> None:
         _validate_zip_members(path, {"[Content_Types].xml", "word/document.xml"}, "DOCX")
         return
 
-    _validate_epub_signature(path)
+    if suffix == ".epub":
+        _validate_epub_signature(path)
+        return
+
+    if suffix in {".txt", ".md"}:
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                sample = file.read(4096)
+                if "\x00" in sample:
+                    raise ValueError(f"File content does not look like a valid {suffix.lstrip('.').upper()} document.")
+        except UnicodeDecodeError:
+            try:
+                with path.open("r", encoding="latin-1") as file:
+                    sample = file.read(4096)
+                    if "\x00" in sample:
+                        raise ValueError(f"File content does not look like a valid {suffix.lstrip('.').upper()} document.")
+            except Exception as exc:
+                raise ValueError(f"File content cannot be read as text for {suffix.lstrip('.').upper()} document.") from exc
+        return
 
 
 def _validate_zip_members(path: Path, required_members: set[str], file_type: str) -> None:
@@ -166,28 +191,51 @@ def _load_pdf(path: Path) -> list[Document]:
 
 def _load_docx(path: Path) -> list[Document]:
     document = docx.Document(path)
-    paragraphs = [clean_text(paragraph.text) for paragraph in document.paragraphs]
-    table_rows: list[str] = []
+    metadata = _base_metadata(path, "DOCX")
+    sections: list[Document] = []
+    current_section_name = "Document"
+    current_parts: list[str] = []
 
-    for table in document.tables:
-        for row in table.rows:
-            cells = [clean_text(cell.text) for cell in row.cells]
-            row_text = " | ".join(cell for cell in cells if cell)
-            if row_text:
-                table_rows.append(row_text)
+    for item in document.iter_inner_content():
+        if isinstance(item, docx.text.paragraph.Paragraph):
+            text = clean_text(item.text)
+            if not text:
+                continue
+            style_name = getattr(getattr(item, "style", None), "name", "")
+            if style_name.startswith("Heading"):
+                if current_parts:
+                    section_text = "\n\n".join(current_parts)
+                    idx = len(sections) + 1
+                    sections.append(
+                        Document(
+                            page_content=section_text,
+                            metadata={**metadata, "page": idx, "section": current_section_name},
+                        )
+                    )
+                    current_parts = []
+                current_section_name = text
+            current_parts.append(text)
+        elif isinstance(item, docx.table.Table):
+            table_rows: list[str] = []
+            for row in item.rows:
+                cells = [clean_text(cell.text) for cell in row.cells]
+                row_text = " | ".join(cell for cell in cells if cell)
+                if row_text:
+                    table_rows.append(row_text)
+            if table_rows:
+                current_parts.append("\n".join(table_rows))
 
-    text_parts = [paragraph for paragraph in paragraphs if paragraph] + table_rows
-    text = "\n\n".join(text_parts)
-
-    if not text:
-        return []
-
-    return [
-        Document(
-            page_content=text,
-            metadata={**_base_metadata(path, "DOCX"), "page": 1, "section": "Document"},
+    if current_parts:
+        section_text = "\n\n".join(current_parts)
+        idx = len(sections) + 1
+        sections.append(
+            Document(
+                page_content=section_text,
+                metadata={**metadata, "page": idx, "section": current_section_name},
+            )
         )
-    ]
+
+    return sections
 
 
 def _load_epub(path: Path) -> list[Document]:
@@ -203,7 +251,9 @@ def _load_epub(path: Path) -> list[Document]:
         text = clean_text(soup.get_text(separator="\n"))
         if text:
             index = len(documents) + 1
-            title = item.get_name() or f"Section {index}"
+            heading_tag = soup.find(["h1", "h2", "title"])
+            heading_text = clean_text(heading_tag.get_text()) if heading_tag else ""
+            title = heading_text or item.get_name() or f"Section {index}"
             documents.append(
                 Document(
                     page_content=text,
@@ -212,6 +262,62 @@ def _load_epub(path: Path) -> list[Document]:
             )
 
     return documents
+
+
+def _load_text(path: Path, suffix: str) -> list[Document]:
+    file_type = suffix.lstrip(".").upper()
+    metadata = _base_metadata(path, file_type)
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = path.read_text(encoding="latin-1", errors="replace")
+
+    text = clean_text(content)
+    if not text:
+        return []
+
+    if suffix == ".md" and ("\n#" in text or text.startswith("#")):
+        sections: list[Document] = []
+        parts = re.split(r"(?m)^(#{1,3}\s+.+)$", text)
+        current_title = "Document"
+        current_body: list[str] = []
+
+        for part in parts:
+            if re.match(r"^#{1,3}\s+", part):
+                if current_body:
+                    body_text = clean_text("\n".join(current_body))
+                    if body_text:
+                        idx = len(sections) + 1
+                        sections.append(
+                            Document(
+                                page_content=body_text,
+                                metadata={**metadata, "page": idx, "section": current_title},
+                            )
+                        )
+                current_title = clean_text(re.sub(r"^#{1,3}\s+", "", part))
+                current_body = []
+            else:
+                current_body.append(part)
+
+        if current_body:
+            body_text = clean_text("\n".join(current_body))
+            if body_text:
+                idx = len(sections) + 1
+                sections.append(
+                    Document(
+                        page_content=body_text,
+                        metadata={**metadata, "page": idx, "section": current_title},
+                    )
+                )
+        if sections:
+            return sections
+
+    return [
+        Document(
+            page_content=text,
+            metadata={**metadata, "page": 1, "section": "Document"},
+        )
+    ]
 
 
 def _is_epub_navigation_item(item) -> bool:
