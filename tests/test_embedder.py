@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import MagicMock, patch
 
-from core.embedder import vector_store_document_count
+from core.embedder import create_vector_store, vector_store_document_count
+
+
+class FakeDoc:
+    def __init__(self, page_content: str) -> None:
+        self.page_content = page_content
 
 
 class FakeCollection:
@@ -39,6 +45,19 @@ class EmbedderHelperTests(unittest.TestCase):
 
         self.assertEqual(vector_store_document_count(store), 2)
         self.assertEqual(store.include, [])
+
+    @patch("core.embedder.create_embeddings")
+    @patch("core.embedder.Chroma")
+    def test_create_vector_store_batches_documents(self, mock_chroma, mock_embeddings) -> None:
+        mock_store = MagicMock()
+        mock_chroma.from_documents.return_value = mock_store
+        chunks = [FakeDoc(f"Chunk {i}") for i in range(15)]
+
+        store = create_vector_store(chunks, "test-col", persist_directory=None, batch_size=5)
+
+        self.assertEqual(store, mock_store)
+        mock_chroma.from_documents.assert_called_once()
+        self.assertEqual(mock_store.add_documents.call_count, 2)
 
 
 if __name__ == "__main__":
