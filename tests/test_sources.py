@@ -76,6 +76,21 @@ class SourceHelperTests(unittest.TestCase):
         self.assertNotIn("private-report.pdf", context)
         self.assertNotIn("Source [2]", context)
 
+    def test_build_source_references_keeps_highest_relevance_score(self) -> None:
+        documents = [
+            Document(
+                page_content="Lower score chunk on page 1.",
+                metadata={"filename": "doc.pdf", "page": 1, "section": "Intro", "relevance_score": 0.65},
+            ),
+            Document(
+                page_content="Higher score chunk on same page 1.",
+                metadata={"filename": "doc.pdf", "page": 1, "section": "Intro", "relevance_score": 0.92},
+            ),
+        ]
+        refs = build_source_references(documents)
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0].relevance_score, 0.92)
+
 
 if __name__ == "__main__":
     unittest.main()
