@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import math
 import os
 from threading import Lock
 
@@ -80,8 +81,9 @@ def check_rate_limit(
 
     recent = active_rate_limit_timestamps(timestamps, now, window_seconds)
     if len(recent) >= max_events:
-        oldest = min(recent)
-        retry_after = max(1, int(window_seconds - (now - oldest)))
+        sorted_recent = sorted(recent)
+        expiring_timestamp = sorted_recent[len(sorted_recent) - max_events]
+        retry_after = max(1, math.ceil(window_seconds - (now - expiring_timestamp)))
         return False, recent, retry_after
 
     recent.append(now)
