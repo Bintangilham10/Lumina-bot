@@ -1,23 +1,25 @@
 # Lumina Doc
 
-Lumina Doc is an AI-powered document chatbot for PDF, DOCX, and EPUB files. It uses Google Gemini, LangChain, and ChromaDB to index uploaded documents and answer questions from their contents.
+Lumina Doc is an AI-powered document chatbot for PDF, DOCX, EPUB, TXT, and MD files. It uses Google Gemini, LangChain, and ChromaDB to index uploaded documents and answer questions from their contents.
 
 App title: **Lumina Doc - Chatbot Dokumen Cerdas**
 
 ## Features
 
-- PDF, DOCX, and EPUB document loading
-- Google Gemini 3.5 Flash for document question answering
-- Google Generative AI embeddings with local ChromaDB storage
+- PDF, DOCX, EPUB, TXT, and MD document loading
+- Google Gemini 1.5 Flash (and 2.0 Flash) for document question answering
+- Multi-turn conversation context support for follow-up questions
+- Google Generative AI embeddings (`text-embedding-004`) with local ChromaDB storage
 - Streamlit web UI with Indonesian language support
 - Streaming answers in the web chat
 - Staged upload progress for document processing
 - Web controls for chunking, retrieval, relevance threshold, model, temperature, and indexing limits
+- Export chat history to Markdown (.md) and close active document controls
 - Optional Streamlit password gate, per-session/global auth and question rate limiting, and audit logging
 - Privacy-safe audit metrics for processing latency, answer latency, and approximate context size
-- File signature checks for PDF, DOCX, and EPUB uploads
+- File signature checks for PDF, DOCX, EPUB, TXT, and MD uploads
 - ZIP safety limits for DOCX and EPUB uploads to reduce decompression-bomb risk
-- CLI chatbot for terminal workflows
+- CLI chatbot with conversation history for terminal workflows
 - CLI reuse of persisted Chroma collections for unchanged documents and chunking settings
 - Dockerfile and CI workflow with unit tests, dependency audit, and image build checks
 - Numbered source citations for retrieved document evidence
@@ -106,16 +108,16 @@ Then edit `.env`:
 
 ```env
 GOOGLE_API_KEY=your_key_here
-GEMINI_CHAT_MODEL=gemini-3.5-flash
-GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+GEMINI_CHAT_MODEL=gemini-1.5-flash
+GEMINI_EMBEDDING_MODEL=text-embedding-004
 LUMINA_APP_PASSWORD=
 LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE=5
 LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE=30
 LUMINA_MAX_QUESTIONS_PER_MINUTE=20
 LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE=120
 LUMINA_AUDIT_LOG_PATH=
-LUMINA_ALLOWED_CHAT_MODELS=gemini-3.5-flash
-LUMINA_ALLOWED_EMBEDDING_MODELS=gemini-embedding-2
+LUMINA_ALLOWED_CHAT_MODELS=gemini-1.5-flash,gemini-2.0-flash,gemini-1.5-pro
+LUMINA_ALLOWED_EMBEDDING_MODELS=text-embedding-004
 ```
 
 ## Streamlit Usage
@@ -126,7 +128,7 @@ Run the web app:
 streamlit run app.py
 ```
 
-Open the local Streamlit URL, upload a PDF, DOCX, or EPUB file from the sidebar, then ask questions in Bahasa Indonesia or English.
+Open the local Streamlit URL, upload a PDF, DOCX, EPUB, TXT, or MD file from the sidebar, then ask questions in Bahasa Indonesia or English.
 
 The sidebar settings let you tune chunk size, chunk overlap, retrieval `top-k`, Gemini model names, response temperature, and document indexing limits before the file is processed.
 
@@ -212,10 +214,10 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 
 ## How It Works
 
-1. `core/loader.py` extracts text and metadata from PDF, DOCX, or EPUB files.
+1. `core/loader.py` extracts text and metadata from PDF, DOCX, EPUB, TXT, or MD files.
 2. `core/splitter.py` splits text with `RecursiveCharacterTextSplitter` using `chunk_size=1000` and `chunk_overlap=200`.
-3. `core/embedder.py` creates Google Generative AI embeddings and stores vectors in ChromaDB.
-4. `core/chatbot.py` creates a lightweight retrieval QA flow with Gemini 3.5 Flash.
+3. `core/embedder.py` creates Google Generative AI embeddings (`text-embedding-004`) and stores vectors in ChromaDB.
+4. `core/chatbot.py` creates a lightweight retrieval QA flow with Gemini 1.5 Flash and multi-turn context support.
 5. `app.py` and `main.py` provide Streamlit and CLI interfaces.
 
 ## Environment Variables
@@ -223,8 +225,8 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | Name | Description |
 | --- | --- |
 | `GOOGLE_API_KEY` | Google Gemini API key used by LangChain Google GenAI integrations |
-| `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-3.5-flash` |
-| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `gemini-embedding-2` |
+| `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-1.5-flash` |
+| `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `text-embedding-004` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
 | `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE` | Process-wide password attempt limit across Streamlit sessions. Defaults to `30`; use `0` to disable |
