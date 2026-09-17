@@ -9,6 +9,7 @@ import time
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from utils.helpers import ensure_directory
@@ -16,6 +17,7 @@ from utils.helpers import ensure_directory
 
 AUDIT_LOG_ENV_VAR = "LUMINA_AUDIT_LOG_PATH"
 FILENAME_HASH_LENGTH = 16
+_audit_log_lock = Lock()
 
 
 def audit_log_path(log_path: str | Path | None = None) -> Path | None:
@@ -44,8 +46,9 @@ def audit_event(
 
     try:
         ensure_directory(path.parent)
-        with path.open("a", encoding="utf-8") as file:
-            file.write(json.dumps(record, sort_keys=True) + "\n")
+        with _audit_log_lock:
+            with path.open("a", encoding="utf-8") as file:
+                file.write(json.dumps(record, sort_keys=True) + "\n")
     except OSError:
         return
 
