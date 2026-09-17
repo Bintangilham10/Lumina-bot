@@ -30,9 +30,12 @@ RUN python -m pip install --no-cache-dir --no-index --find-links=/wheels -r requ
     && rm -rf /wheels
 
 COPY --chown=lumina:lumina . .
-RUN chown -R lumina:lumina /app
+RUN mkdir -p /app/chroma_db /app/logs \
+    && chown -R lumina:lumina /app
 
 USER lumina
+
+VOLUME ["/app/chroma_db", "/app/logs"]
 
 EXPOSE 8501
 
