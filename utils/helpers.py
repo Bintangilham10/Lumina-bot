@@ -11,7 +11,7 @@ from typing import Iterable
 from dotenv import load_dotenv
 
 
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub", ".txt", ".md"}
 DEFAULT_MAX_FILE_SIZE_MB = 55
 DEFAULT_MAX_PAGES = 500
 DEFAULT_MAX_CHUNKS = 1000
