@@ -232,6 +232,12 @@ class ChatbotStreamingTests(unittest.TestCase):
         plain = build_retrieval_query("Apa itu JWT?", None)
         self.assertEqual(plain, "Apa itu JWT?")
 
+    def test_stream_question_rejects_oversized_question(self) -> None:
+        qa_chain = FakeQaChain([], FakeLlm())
+        oversized = "a" * 4001
+        with self.assertRaisesRegex(ValueError, "too long"):
+            stream_question(qa_chain, oversized)
+
 
 if __name__ == "__main__":
     unittest.main()
