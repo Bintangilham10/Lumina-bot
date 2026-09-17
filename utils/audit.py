@@ -22,7 +22,7 @@ _audit_log_lock = Lock()
 
 def audit_log_path(log_path: str | Path | None = None) -> Path | None:
     """Resolve the configured audit log path, returning None when disabled."""
-    configured_path = str(log_path or os.getenv(AUDIT_LOG_ENV_VAR, "")).strip()
+    configured_path = str(log_path or os.getenv(AUDIT_LOG_ENV_VAR, "")).strip().strip("'\"")
     if not configured_path:
         return None
     return Path(configured_path).expanduser()
