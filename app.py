@@ -1098,6 +1098,22 @@ def render_chat() -> None:
         )
         return
 
+    if not st.session_state.messages:
+        st.markdown(
+            """
+            <div style="background: var(--lumina-white); border: 1px solid var(--lumina-line); border-radius: 14px; padding: 1.25rem 1.5rem; margin: 0 auto 1.5rem; max-width: 930px;">
+                <div style="font-size: 0.72rem; font-family: 'DM Mono', monospace; color: var(--lumina-lime-deep); text-transform: uppercase; margin-bottom: 0.35rem;">Siap untuk tanya jawab</div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--lumina-ink); margin-bottom: 0.4rem;">Dokumen berhasil diindeks. Coba tanyakan:</div>
+                <ul style="font-size: 0.86rem; color: var(--lumina-muted); line-height: 1.6; margin: 0; padding-left: 1.2rem;">
+                    <li><em>"Apa ringkasan utama dari dokumen ini?"</em></li>
+                    <li><em>"Jelaskan poin-poin penting atau kesimpulan dokumen ini."</em></li>
+                    <li><em>"Apa saja topik atau bab yang dibahas?"</em></li>
+                </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
