@@ -21,7 +21,7 @@ DEFAULT_EMBEDDING_BATCH_SIZE = 100
 def resolve_embedding_model(model: str | None = None) -> str:
     """Resolve the embedding model from an explicit value, environment, or default."""
     resolved_model = model or os.getenv(EMBEDDING_MODEL_ENV_VAR) or DEFAULT_EMBEDDING_MODEL
-    return resolved_model.strip() or DEFAULT_EMBEDDING_MODEL
+    return resolved_model.strip().strip("'\"") or DEFAULT_EMBEDDING_MODEL
 
 
 def create_embeddings(model: str | None = None) -> GoogleGenerativeAIEmbeddings:
