@@ -471,6 +471,20 @@ def user_safe_error_message(operation: str) -> str:
     )
 
 
+def classify_user_error(exc: Exception, operation: str) -> str:
+    """Return safe, user-friendly error guidance without leaking sensitive tracebacks."""
+    msg = str(exc).lower()
+    if any(k in msg for k in ["api_key", "invalid api key", "unauthorized", "401"]):
+        return "Kunci API Google Gemini tidak valid atau belum diatur. Periksa konfigurasi GOOGLE_API_KEY."
+    if any(k in msg for k in ["resource_exhausted", "quota", "429", "rate limit"]):
+        return "Batas kuota atau rate limit Google Gemini tercapai. Tunggu beberapa saat sebelum mencoba lagi."
+    if any(k in msg for k in ["safety", "blocked", "harm_category"]):
+        return "Pertanyaan atau respons diblokir oleh kebijakan keamanan konten Google Gemini."
+    if any(k in msg for k in ["not found", "404", "is not found for api version"]):
+        return "Model AI atau endpoint tidak ditemukan. Periksa konfigurasi nama model di pengaturan."
+    return user_safe_error_message(operation)
+
+
 def initialize_state() -> None:
     defaults = {
         "authenticated": False,
@@ -517,7 +531,7 @@ def document_embedding_cache_key(
     )
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=10)
 def get_cached_vector_store(
     file_hash: str,
     chunk_size: int,
@@ -900,6 +914,20 @@ def rate_limit_question() -> bool:
     return False
 
 
+def export_chat_markdown(messages: list[dict], doc_name: str) -> str:
+    lines = [
+        "# Riwayat Tanya Jawab Lumina Doc",
+        f"**Dokumen:** {doc_name}",
+        "",
+    ]
+    for msg in messages:
+        role = "Pengguna" if msg["role"] == "user" else "Lumina Doc"
+        lines.append(f"### {role}:")
+        lines.append(str(msg["content"]))
+        lines.append("")
+    return "\n".join(lines)
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
@@ -919,7 +947,7 @@ def render_sidebar() -> None:
         st.markdown('<div class="lumina-sidebar-kicker">03 / Add source</div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Tambah dokumen",
-            type=["pdf", "docx", "epub"],
+            type=["pdf", "docx", "epub", "txt", "md"],
             accept_multiple_files=False,
         )
 
@@ -930,9 +958,9 @@ def render_sidebar() -> None:
                     '<div class="lumina-ready"><span>●</span> DOCUMENT READY FOR QUESTIONS</div>',
                     unsafe_allow_html=True,
                 )
-            except Exception:
+            except Exception as exc:
                 reset_document_state()
-                st.error(user_safe_error_message("document_processing"))
+                st.error(classify_user_error(exc, "document_processing"))
 
         meta = st.session_state.document_meta
         if meta:
@@ -967,9 +995,24 @@ def render_sidebar() -> None:
                 unsafe_allow_html=True,
             )
 
+            if st.button("Tutup dokumen aktif", use_container_width=True):
+                reset_document_state()
+                st.rerun()
+
         if st.button("Bersihkan percakapan", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
+
+        if st.session_state.messages:
+            doc_name = meta.get("filename", "dokumen") if meta else "dokumen"
+            chat_export = export_chat_markdown(st.session_state.messages, doc_name)
+            st.download_button(
+                label="Unduh percakapan (.md)",
+                data=chat_export,
+                file_name=f"lumina-chat-{doc_name}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
 
 
 def render_main_header(meta: dict | None = None) -> None:
@@ -1062,6 +1105,7 @@ def render_chat() -> None:
                 answer_stream, source_documents = stream_question(
                     st.session_state.qa_chain,
                     question,
+                    chat_history=st.session_state.messages[:-1],
                 )
                 source_stats = document_text_stats(source_documents)
                 sources = format_sources(source_documents)
@@ -1083,7 +1127,7 @@ def render_chat() -> None:
                 )
         except Exception as exc:
             sources = []
-            answer = user_safe_error_message("question_answering")
+            answer = classify_user_error(exc, "question_answering")
             audit_event(
                 "question_error",
                 question_length=len(question),
