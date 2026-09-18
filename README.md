@@ -228,6 +228,8 @@ The GitHub Actions workflow runs unit tests, `pip check`, `pip-audit`, and a Doc
 | `GEMINI_CHAT_MODEL` | Optional Gemini chat model override. Defaults to `gemini-1.5-flash` |
 | `GEMINI_EMBEDDING_MODEL` | Optional embedding model override. Defaults to `text-embedding-004` |
 | `LUMINA_APP_PASSWORD` | Optional Streamlit password gate. Leave blank for local development without auth |
+| `LUMINA_SESSION_LIFETIME_MINUTES` | Session lifetime in minutes before requiring re-authentication. Defaults to `120`; use `0` to disable |
+| `LUMINA_EMBEDDING_BATCH_SIZE` | Batch size for embedding chunk indexing. Defaults to `100` |
 | `LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE` | Password attempt limit for the Streamlit password gate. Defaults to `5`; use `0` to disable |
 | `LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE` | Process-wide password attempt limit across Streamlit sessions. Defaults to `30`; use `0` to disable |
 | `LUMINA_MAX_QUESTIONS_PER_MINUTE` | Per-session Streamlit question limit. Defaults to `20`; use `0` to disable |
