@@ -710,22 +710,34 @@ def render_settings_controls() -> AppSettings:
             )
         )
         chat_model_default = resolve_chat_model()
+        chat_options = configured_model_options(
+            ALLOWED_CHAT_MODELS_ENV_VAR,
+            chat_model_default,
+        )
+        chat_index = (
+            chat_options.index(chat_model_default)
+            if chat_model_default in chat_options
+            else 0
+        )
         chat_model = st.selectbox(
             "Model chat",
-            options=configured_model_options(
-                ALLOWED_CHAT_MODELS_ENV_VAR,
-                chat_model_default,
-            ),
-            index=0,
+            options=chat_options,
+            index=chat_index,
         ).strip()
         embedding_model_default = resolve_embedding_model()
+        embed_options = configured_model_options(
+            ALLOWED_EMBEDDING_MODELS_ENV_VAR,
+            embedding_model_default,
+        )
+        embed_index = (
+            embed_options.index(embedding_model_default)
+            if embedding_model_default in embed_options
+            else 0
+        )
         embedding_model = st.selectbox(
             "Model embedding",
-            options=configured_model_options(
-                ALLOWED_EMBEDDING_MODELS_ENV_VAR,
-                embedding_model_default,
-            ),
-            index=0,
+            options=embed_options,
+            index=embed_index,
         ).strip()
         max_file_size_mb = int(
             st.number_input(
@@ -1033,11 +1045,12 @@ def render_sidebar() -> None:
 
         if st.session_state.messages:
             doc_name = meta.get("filename", "dokumen") if meta else "dokumen"
+            clean_export_name = re.sub(r'[\\/*?:"<>|]', "-", doc_name).strip("-") or "dokumen"
             chat_export = export_chat_markdown(st.session_state.messages, doc_name)
             st.download_button(
                 label="Unduh percakapan (.md)",
                 data=chat_export,
-                file_name=f"lumina-chat-{doc_name}.md",
+                file_name=f"lumina-chat-{clean_export_name}.md",
                 mime="text/markdown",
                 use_container_width=True,
             )
