@@ -160,6 +160,7 @@ Useful CLI options:
 | `--rebuild-index` | Recreate embeddings even if a matching persisted collection already exists |
 | `--chat-model` | Override `GEMINI_CHAT_MODEL` for one run |
 | `--embedding-model` | Override `GEMINI_EMBEDDING_MODEL` for one run |
+| `--embedding-batch-size` | Batch size for embedding chunk indexing. Default: `100` |
 | `--temperature` | Response randomness from `0` to `1`. Default: `0.2` |
 | `--hide-sources` | Hide source snippets in terminal answers |
 | `--max-file-size-mb` | Reject files larger than this before indexing. Default: `55`; use `0` to disable |
