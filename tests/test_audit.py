@@ -91,6 +91,11 @@ class AuditTests(unittest.TestCase):
             lines = path.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(len(lines), 10)
 
+    def test_audit_event_handles_os_error_gracefully(self) -> None:
+        # Should not raise any exception when path cannot be written
+        read_only_or_invalid = Path("/sys/invalid/path/audit.jsonl")
+        audit_event("dummy_event", log_path=read_only_or_invalid)
+
 
 if __name__ == "__main__":
     unittest.main()
