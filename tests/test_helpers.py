@@ -10,9 +10,12 @@ from pathlib import Path
 from utils.helpers import (
     clean_text,
     document_collection_name,
+    ensure_directory,
     file_sha256,
     is_supported_file,
+    load_environment,
     safe_collection_name,
+    supported_extensions_text,
     validate_document_limits,
     validate_file_size,
 )
@@ -38,6 +41,9 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(clean_text(None), "")
         self.assertEqual(clean_text(""), "")
 
+    def test_clean_text_returns_empty_for_whitespace_only(self) -> None:
+        self.assertEqual(clean_text("   \t\n  "), "")
+
     def test_safe_collection_name_normalizes_text_parts(self) -> None:
         name = safe_collection_name(["Lumina Doc", "File #1", "!!!"])
 
@@ -45,6 +51,17 @@ class HelperTests(unittest.TestCase):
 
     def test_safe_collection_name_enforces_minimum_length(self) -> None:
         self.assertEqual(safe_collection_name(["x"]), "lumina-x")
+
+    def test_safe_collection_name_handles_all_special_characters(self) -> None:
+        name = safe_collection_name(["!!!", "@@@"])
+        self.assertTrue(len(name) >= 3)
+        self.assertFalse(name.startswith("-"))
+        self.assertFalse(name.endswith("-"))
+
+    def test_safe_collection_name_truncates_at_63_characters(self) -> None:
+        long_parts = ["a" * 40, "b" * 40]
+        name = safe_collection_name(long_parts)
+        self.assertLessEqual(len(name), 63)
 
     def test_document_collection_name_includes_hash_and_chunk_settings(self) -> None:
         name = document_collection_name(
@@ -112,6 +129,9 @@ class HelperTests(unittest.TestCase):
             max_chunks=0,
         )
 
+    def test_validate_file_size_allows_exactly_at_limit(self) -> None:
+        validate_file_size(2 * 1024 * 1024, max_file_size_mb=2)
+
     def test_supported_file_detection_is_case_insensitive(self) -> None:
         self.assertTrue(is_supported_file("Document.PDF"))
         self.assertTrue(is_supported_file("Document.Docx"))
@@ -129,6 +149,33 @@ class HelperTests(unittest.TestCase):
             path.write_bytes(content)
 
             self.assertEqual(file_sha256(path), expected_hash)
+
+    def test_supported_extensions_text_returns_comma_separated_list(self) -> None:
+        text = supported_extensions_text()
+        self.assertIn(".pdf", text)
+        self.assertIn(".docx", text)
+        self.assertIn(",", text)
+
+    def test_ensure_directory_creates_and_returns_path(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            target = Path(temp_dir) / "sub" / "deep"
+            result = ensure_directory(target)
+            self.assertTrue(result.is_dir())
+            self.assertEqual(result, target)
+
+    def test_load_environment_raises_when_api_key_missing(self) -> None:
+        import os
+        from unittest.mock import patch as mock_patch
+        with mock_patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "GOOGLE_API_KEY"):
+                load_environment()
+
+    def test_load_environment_strips_quotes_from_api_key(self) -> None:
+        import os
+        from unittest.mock import patch as mock_patch
+        with mock_patch.dict(os.environ, {"GOOGLE_API_KEY": "  'my-key'  "}, clear=True):
+            key = load_environment()
+            self.assertEqual(key, "my-key")
 
 
 if __name__ == "__main__":
