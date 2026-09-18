@@ -140,6 +140,29 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertIn("Strong source paragraph.", llm.prompts[0])
         self.assertNotIn("Weak source paragraph.", llm.prompts[0])
 
+    def test_ask_question_attaches_relevance_scores_when_threshold_is_none(self) -> None:
+        doc = Document(
+            page_content="Paragraph content.",
+            metadata={"filename": "doc.pdf", "page": 1},
+        )
+        vector_store = FakeScoredVectorStore([(doc, 0.88)])
+        llm = FakeLlm()
+        qa_chain = DocumentQaChain(
+            retriever=FakeRetriever([]),
+            llm=llm,  # type: ignore[arg-type]
+            vector_store=vector_store,  # type: ignore[arg-type]
+            retrieval_k=1,
+            min_relevance_score=None,
+        )
+
+        response = ask_question(qa_chain, "What is here?")
+
+        self.assertEqual(len(response["source_documents"]), 1)
+        self.assertEqual(
+            response["source_documents"][0].metadata["relevance_score"],
+            0.88,
+        )
+
     def test_ask_question_returns_not_found_when_no_source_passes_threshold(self) -> None:
         document = Document(
             page_content="Weak source paragraph.",
