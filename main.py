@@ -12,6 +12,7 @@ from core.chatbot import ask_question, create_qa_chain
 from core.embedder import (
     create_vector_store,
     load_vector_store,
+    resolve_embedding_batch_size,
     resolve_embedding_model,
     vector_store_document_count,
 )
@@ -28,7 +29,7 @@ from utils.helpers import (
     validate_document_limits,
     validate_file_size,
 )
-from utils.sources import build_source_references, normalize_source_snippet
+from utils.sources import build_source_references, format_source_lines, normalize_source_snippet
 
 
 SOURCE_SNIPPET_LENGTH = 220
@@ -127,6 +128,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override GEMINI_EMBEDDING_MODEL for this run.",
     )
     parser.add_argument(
+        "--embedding-batch-size",
+        type=positive_int,
+        help="Batch size for embedding generation. Default: 100.",
+    )
+    parser.add_argument(
         "--temperature",
         type=temperature_value,
         default=0.2,
@@ -201,30 +207,11 @@ def format_cli_snippet(text: str, max_length: int = SOURCE_SNIPPET_LENGTH) -> st
 
 def format_cli_sources(source_documents, max_sources: int = 4) -> list[str]:
     """Format retrieved documents as concise terminal source lines."""
-    sources: list[str] = []
-    references = build_source_references(
+    return format_source_lines(
         list(source_documents),
         max_sources=max_sources,
         snippet_length=SOURCE_SNIPPET_LENGTH,
     )
-
-    for reference in references:
-        label_parts = [
-            f"[{reference.number}] {reference.filename}",
-            f"page/section {reference.page}",
-        ]
-        if reference.section and reference.section not in {
-            reference.page,
-            f"Page {reference.page}",
-        }:
-            label_parts.append(reference.section)
-        if reference.relevance_score is not None:
-            label_parts.append(f"relevance {reference.relevance_score:.2f}")
-
-        label = " | ".join(label_parts)
-        sources.append(f"{label} - {reference.snippet}" if reference.snippet else label)
-
-    return sources
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -293,11 +280,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     existing_store.delete_collection()
 
             print(f"Creating embeddings for {len(chunks)} chunks...")
+            batch_size = args.embedding_batch_size or resolve_embedding_batch_size()
             vector_store = create_vector_store(
                 chunks=chunks,
                 collection_name=collection_name,
                 persist_directory=persist_dir,
                 embedding_model=embedding_model,
+                batch_size=batch_size,
             )
 
         qa_chain = create_qa_chain(
