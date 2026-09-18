@@ -59,6 +59,11 @@ class EmbedderHelperTests(unittest.TestCase):
         mock_chroma.from_documents.assert_called_once()
         self.assertEqual(mock_store.add_documents.call_count, 2)
 
+    def test_create_vector_store_rejects_empty_chunks(self) -> None:
+        with self.assertRaisesRegex(ValueError, "No chunks were provided"):
+            create_vector_store([], "test-col", persist_directory=None)
+
 
 if __name__ == "__main__":
     unittest.main()
+
