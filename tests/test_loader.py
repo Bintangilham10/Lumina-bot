@@ -156,6 +156,33 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(loaded.total_pages, 1)
             self.assertIn("Lumina EPUB content.", loaded.documents[0].page_content)
 
+    def test_load_document_epub_strips_scripts_and_styles(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "styled.epub"
+            book = epub.EpubBook()
+            book.set_identifier("lumina-styled")
+            book.set_title("Lumina Styled")
+            book.set_language("en")
+            chapter = epub.EpubHtml(title="Chapter 1", file_name="chapter.xhtml", lang="en")
+            chapter.content = (
+                "<html><head><style>.css { color: red; }</style></head>"
+                "<body><script>var x = 10;</script><p>Clean content without code.</p></body></html>"
+            )
+            book.add_item(chapter)
+            book.toc = (chapter,)
+            book.spine = ["nav", chapter]
+            book.add_item(epub.EpubNcx())
+            book.add_item(epub.EpubNav())
+            epub.write_epub(str(path), book)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                loaded = load_document(path)
+
+            self.assertIn("Clean content without code.", loaded.documents[0].page_content)
+            self.assertNotIn("color: red", loaded.documents[0].page_content)
+            self.assertNotIn("var x", loaded.documents[0].page_content)
+
     def test_load_document_reads_txt_content(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
             path = Path(temp_dir) / "notes.txt"
