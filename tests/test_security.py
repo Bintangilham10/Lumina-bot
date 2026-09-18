@@ -12,12 +12,17 @@ from utils.security import (
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
+    configured_password,
     int_from_env,
     verify_password,
 )
 
 
 class SecurityHelperTests(unittest.TestCase):
+    def test_configured_password_strips_quotes_and_whitespace(self) -> None:
+        with patch.dict(os.environ, {"LUMINA_APP_PASSWORD": ' "my-secret-pass" '}, clear=True):
+            self.assertEqual(configured_password(), "my-secret-pass")
+
     def test_verify_password_uses_expected_value(self) -> None:
         self.assertTrue(verify_password("secret", "secret"))
         self.assertFalse(verify_password("wrong", "secret"))
