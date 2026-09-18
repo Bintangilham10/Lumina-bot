@@ -91,6 +91,22 @@ class SourceHelperTests(unittest.TestCase):
         self.assertEqual(len(refs), 1)
         self.assertEqual(refs[0].relevance_score, 0.92)
 
+    def test_format_source_lines_produces_readable_summaries(self) -> None:
+        from utils.sources import format_source_lines
+        documents = [
+            Document(
+                page_content="Important insight regarding economics.",
+                metadata={"filename": "report.pdf", "page": 4, "section": "Bab 2", "relevance_score": 0.89},
+            )
+        ]
+        lines = format_source_lines(documents)
+        self.assertEqual(len(lines), 1)
+        self.assertIn("[1] report.pdf", lines[0])
+        self.assertIn("page/section 4", lines[0])
+        self.assertIn("Bab 2", lines[0])
+        self.assertIn("relevance 0.89", lines[0])
+        self.assertIn("Important insight", lines[0])
+
 
 if __name__ == "__main__":
     unittest.main()
