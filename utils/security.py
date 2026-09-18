@@ -58,7 +58,7 @@ def int_from_env(name: str, default: int, minimum: int = 0) -> int:
 def configured_model_options(env_var: str, default_model: str) -> list[str]:
     """Return a de-duplicated allowlist of model options for production UI."""
     raw_value = os.getenv(env_var, "")
-    options = [value.strip() for value in raw_value.split(",") if value.strip()]
+    options = [value.strip().strip("'\"") for value in raw_value.split(",") if value.strip().strip("'\"")]
     if default_model not in options:
         options.insert(0, default_model)
 
