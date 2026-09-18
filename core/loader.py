@@ -276,7 +276,7 @@ def _load_docx(path: Path) -> list[Document]:
         elif isinstance(item, docx.table.Table):
             table_rows: list[str] = []
             for r_idx, row in enumerate(item.rows):
-                seen_cells: set[int] = set()
+                seen_cells: set[object] = set()
                 cells: list[str] = []
                 for cell in row.cells:
                     cell_id = getattr(cell, "_tc", id(cell))
