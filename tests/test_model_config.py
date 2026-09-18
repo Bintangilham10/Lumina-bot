@@ -51,10 +51,18 @@ class ModelConfigTests(unittest.TestCase):
                 k=1,
                 min_relevance_score=1.1,
             )
+        with self.assertRaisesRegex(ValueError, "min_relevance_score"):
+            create_qa_chain(
+                object(),  # type: ignore[arg-type]
+                k=1,
+                min_relevance_score=-0.1,
+            )
 
     def test_create_llm_rejects_out_of_range_temperature(self) -> None:
         with self.assertRaisesRegex(ValueError, "temperature"):
             create_llm(temperature=1.1)
+        with self.assertRaisesRegex(ValueError, "temperature"):
+            create_llm(temperature=-0.1)
 
     def test_embedding_batch_size_resolution(self) -> None:
         from core.embedder import DEFAULT_EMBEDDING_BATCH_SIZE, resolve_embedding_batch_size
