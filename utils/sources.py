@@ -116,3 +116,35 @@ def format_source_context(documents: list[Document]) -> str:
         blocks.append(f"{label}\n{document.page_content}")
 
     return "\n\n".join(blocks)
+
+
+def format_source_lines(
+    documents: list[Document],
+    max_sources: int | None = None,
+    snippet_length: int = 220,
+) -> list[str]:
+    """Format retrieved documents as readable citation lines."""
+    sources: list[str] = []
+    references = build_source_references(
+        list(documents),
+        max_sources=max_sources,
+        snippet_length=snippet_length,
+    )
+
+    for reference in references:
+        label_parts = [
+            f"[{reference.number}] {reference.filename}",
+            f"page/section {reference.page}",
+        ]
+        if reference.section and reference.section not in {
+            reference.page,
+            f"Page {reference.page}",
+        }:
+            label_parts.append(reference.section)
+        if reference.relevance_score is not None:
+            label_parts.append(f"relevance {reference.relevance_score:.2f}")
+
+        label = " | ".join(label_parts)
+        sources.append(f"{label} - {reference.snippet}" if reference.snippet else label)
+
+    return sources
