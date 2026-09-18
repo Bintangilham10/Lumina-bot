@@ -52,7 +52,7 @@ from utils.security import (
     int_from_env,
     verify_password,
 )
-from utils.sources import build_source_references, normalize_source_snippet
+from utils.sources import build_source_references, format_source_lines, normalize_source_snippet
 
 
 APP_TITLE = "Lumina Doc — Chatbot Dokumen Cerdas"
@@ -801,8 +801,10 @@ def authenticate_session() -> bool:
         """,
         unsafe_allow_html=True,
     )
-    password = st.text_input("Access code", type="password")
-    if st.button("Buka ruang kerja", use_container_width=True):
+    with st.form("lumina_auth_form", border=False):
+        password = st.text_input("Access code", type="password")
+        submitted = st.form_submit_button("Buka ruang kerja", use_container_width=True)
+    if submitted:
         now = time.time()
         allowed, timestamps, retry_after = evaluate_auth_attempt_limit(
             list(st.session_state.auth_attempt_timestamps),
@@ -942,6 +944,11 @@ def export_chat_markdown(messages: list[dict], doc_name: str) -> str:
         role = "Pengguna" if msg["role"] == "user" else "Lumina Doc"
         lines.append(f"### {role}:")
         lines.append(str(msg["content"]))
+        if msg.get("source_lines"):
+            lines.append("")
+            lines.append("**Sumber Rujukan:**")
+            for src in msg["source_lines"]:
+                lines.append(f"- {src}")
         lines.append("")
     return "\n".join(lines)
 
@@ -979,6 +986,7 @@ def render_sidebar() -> None:
                 )
             except Exception as exc:
                 reset_document_state()
+                st.session_state.uploader_key = st.session_state.get("uploader_key", 0) + 1
                 st.error(classify_user_error(exc, "document_processing"))
 
         meta = st.session_state.document_meta
@@ -1145,6 +1153,7 @@ def render_chat() -> None:
                 )
                 source_stats = document_text_stats(source_documents)
                 sources = format_sources(source_documents)
+                source_lines = format_source_lines(source_documents)
                 answer = str(st.write_stream(answer_stream)).strip()
                 if not answer:
                     answer = "Tidak ditemukan informasi yang relevan di dokumen untuk menjawab pertanyaan ini."
@@ -1165,6 +1174,7 @@ def render_chat() -> None:
                 )
         except Exception as exc:
             sources = []
+            source_lines = []
             answer = classify_user_error(exc, "question_answering")
             audit_event(
                 "question_error",
@@ -1175,7 +1185,12 @@ def render_chat() -> None:
             st.error(answer)
 
     st.session_state.messages.append(
-        {"role": "assistant", "content": answer, "sources": sources}
+        {
+            "role": "assistant",
+            "content": answer,
+            "sources": sources,
+            "source_lines": source_lines,
+        }
     )
 
 
