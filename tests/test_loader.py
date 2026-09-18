@@ -220,6 +220,36 @@ class LoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "OCR"):
                 load_document(path)
 
+    def test_load_document_maps_pdf_toc_to_sections(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "toc_doc.pdf"
+            pdf = fitz.open()
+            p1 = pdf.new_page()
+            p1.insert_text((72, 72), "Content of chapter one.")
+            p2 = pdf.new_page()
+            p2.insert_text((72, 72), "Content of chapter two.")
+            pdf.set_toc([[1, "Bab 1: Pendahuluan", 1], [1, "Bab 2: Metodologi", 2]])
+            pdf.save(path)
+            pdf.close()
+
+            loaded = load_document(path)
+            self.assertEqual(loaded.total_pages, 2)
+            self.assertEqual(loaded.documents[0].metadata["section"], "Bab 1: Pendahuluan")
+            self.assertEqual(loaded.documents[1].metadata["section"], "Bab 2: Metodologi")
+
+    def test_load_document_docx_deduplicates_merged_cells(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "merged.docx"
+            document = docx.Document()
+            t = document.add_table(rows=1, cols=2)
+            t.rows[0].cells[0].merge(t.rows[0].cells[1])
+            t.rows[0].cells[0].text = "Header Gabungan"
+            document.save(path)
+
+            loaded = load_document(path)
+            self.assertEqual(loaded.total_pages, 1)
+            self.assertEqual(loaded.documents[0].page_content, "Header Gabungan")
+
 
 if __name__ == "__main__":
     unittest.main()
