@@ -29,7 +29,7 @@ from utils.helpers import (
     validate_document_limits,
     validate_file_size,
 )
-from utils.sources import build_source_references, format_source_lines, normalize_source_snippet
+from utils.sources import format_source_lines, normalize_source_snippet
 
 
 SOURCE_SNIPPET_LENGTH = 220
