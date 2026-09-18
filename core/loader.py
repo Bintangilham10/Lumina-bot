@@ -179,6 +179,39 @@ def _validate_zip_archive_safety(archive: zipfile.ZipFile, file_type: str) -> No
         )
 
 
+def _build_pdf_page_sections(pdf: fitz.Document) -> dict[int, str]:
+    """Map PDF page numbers to bookmark/outline section names when available."""
+    page_sections: dict[int, str] = {}
+    try:
+        toc = pdf.get_toc()
+    except Exception:
+        return page_sections
+
+    if not toc:
+        return page_sections
+
+    sorted_toc = [
+        entry for entry in toc
+        if len(entry) >= 3 and isinstance(entry[2], int) and entry[2] > 0
+    ]
+    sorted_toc.sort(key=lambda item: item[2])
+    if not sorted_toc:
+        return page_sections
+
+    current_title = ""
+    toc_idx = 0
+    total_pages = len(pdf)
+
+    for p in range(1, total_pages + 1):
+        while toc_idx < len(sorted_toc) and p >= sorted_toc[toc_idx][2]:
+            current_title = str(sorted_toc[toc_idx][1]).strip()
+            toc_idx += 1
+        if current_title:
+            page_sections[p] = current_title
+
+    return page_sections
+
+
 def _load_pdf(path: Path) -> tuple[list[Document], int]:
     documents: list[Document] = []
     metadata = _base_metadata(path, "PDF")
@@ -190,13 +223,15 @@ def _load_pdf(path: Path) -> tuple[list[Document], int]:
                 "Buka proteksi dokumen PDF terlebih dahulu."
             )
         total_physical_pages = len(pdf)
+        page_sections = _build_pdf_page_sections(pdf)
         for index, page in enumerate(pdf, start=1):
             text = clean_text(page.get_text("text"))
             if text:
+                section_title = page_sections.get(index) or f"Page {index}"
                 documents.append(
                     Document(
                         page_content=text,
-                        metadata={**metadata, "page": index, "section": f"Page {index}"},
+                        metadata={**metadata, "page": index, "section": section_title},
                     )
                 )
 
@@ -232,12 +267,20 @@ def _load_docx(path: Path) -> list[Document]:
         elif isinstance(item, docx.table.Table):
             table_rows: list[str] = []
             for r_idx, row in enumerate(item.rows):
-                cells = [clean_text(cell.text) for cell in row.cells]
-                row_text = " | ".join(cell for cell in cells if cell)
+                seen_cells: set[int] = set()
+                cells: list[str] = []
+                for cell in row.cells:
+                    cell_id = getattr(cell, "_tc", id(cell))
+                    if cell_id not in seen_cells:
+                        seen_cells.add(cell_id)
+                        cleaned = clean_text(cell.text)
+                        if cleaned:
+                            cells.append(cleaned)
+                row_text = " | ".join(cells)
                 if row_text:
                     table_rows.append(row_text)
                     if r_idx == 0 and len(item.rows) > 1:
-                        table_rows.append(" | ".join("---" for cell in cells if cell))
+                        table_rows.append(" | ".join("---" for _ in cells))
             if table_rows:
                 current_parts.append("\n".join(table_rows))
 
