@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 import tempfile
 from dataclasses import dataclass
@@ -449,7 +450,6 @@ def configure_page() -> None:
                 .lumina-header-copy { font-size: 0.84rem; }
                 .lumina-header-index { font-size: 0.62rem; min-width: 0; }
                 .lumina-document-name { max-width: 260px; }
-            }
                 .lumina-empty-top { gap: 0.7rem; min-height: 0; padding: 1.25rem; }
                 .lumina-empty-top h2 { font-size: 1.55rem; }
                 .lumina-empty-number { font-size: 2.5rem; }
