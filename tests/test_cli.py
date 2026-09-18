@@ -62,6 +62,8 @@ class CliTests(unittest.TestCase):
                 "250",
                 "--max-chunks",
                 "750",
+                "--embedding-batch-size",
+                "50",
             ]
         )
 
@@ -71,6 +73,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.retrieval_k, 5)
         self.assertEqual(args.temperature, 0)
         self.assertEqual(args.min_relevance_score, 0.65)
+        self.assertEqual(args.embedding_batch_size, 50)
         self.assertTrue(args.hide_sources)
         self.assertTrue(args.rebuild_index)
         self.assertEqual(args.max_file_size_mb, 25)
