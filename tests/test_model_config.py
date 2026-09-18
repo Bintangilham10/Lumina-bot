@@ -56,6 +56,14 @@ class ModelConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "temperature"):
             create_llm(temperature=1.1)
 
+    def test_embedding_batch_size_resolution(self) -> None:
+        from core.embedder import DEFAULT_EMBEDDING_BATCH_SIZE, resolve_embedding_batch_size
+        self.assertEqual(resolve_embedding_batch_size(50), 50)
+        with patch.dict(os.environ, {"LUMINA_EMBEDDING_BATCH_SIZE": "250"}, clear=True):
+            self.assertEqual(resolve_embedding_batch_size(), 250)
+        with patch.dict(os.environ, {"LUMINA_EMBEDDING_BATCH_SIZE": "invalid"}, clear=True):
+            self.assertEqual(resolve_embedding_batch_size(), DEFAULT_EMBEDDING_BATCH_SIZE)
+
 
 if __name__ == "__main__":
     unittest.main()
