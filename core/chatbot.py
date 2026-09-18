@@ -341,6 +341,8 @@ def _stream_llm_text(llm: ChatGoogleGenerativeAI, prompt: str) -> Iterator[str]:
 
 def _chunk_text(chunk) -> str:
     content = getattr(chunk, "content", chunk)
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
