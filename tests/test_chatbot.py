@@ -261,6 +261,14 @@ class ChatbotStreamingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "too long"):
             stream_question(qa_chain, oversized)
 
+    def test_chunk_text_handles_various_payloads(self) -> None:
+        from core.chatbot import _chunk_text
+        self.assertEqual(_chunk_text(None), "")
+        self.assertEqual(_chunk_text("simple text"), "simple text")
+        self.assertEqual(_chunk_text(FakeChunk(None)), "")
+        self.assertEqual(_chunk_text(FakeChunk("chunk content")), "chunk content")
+        self.assertEqual(_chunk_text([{"text": "part1"}, {"text": "part2"}]), "part1part2")
+
 
 if __name__ == "__main__":
     unittest.main()
