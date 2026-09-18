@@ -1087,11 +1087,11 @@ def render_chat() -> None:
                     <div class="lumina-empty-number">01</div>
                 </div>
                 <div class="lumina-empty-body">
-                    <p>Pilih PDF, DOCX, atau EPUB dari panel kiri. Lumina akan mengindeks isinya secara lokal sebelum mengirim konteks yang relevan ke model.</p>
+                    <p>Pilih berkas dokumen (PDF, DOCX, EPUB, TXT, atau MD) dari panel kiri. Lumina akan mengindeks isinya secara lokal sebelum mengirim konteks yang relevan ke model.</p>
                     <div class="lumina-feature-grid">
                         <div class="lumina-feature"><div class="lumina-feature-index">A / 01</div><strong>Context-first</strong><span>Jawaban fokus pada isi dokumen aktif.</span></div>
                         <div class="lumina-feature"><div class="lumina-feature-index">B / 02</div><strong>Source trail</strong><span>Telusuri halaman dan potongan sumber.</span></div>
-                        <div class="lumina-feature"><div class="lumina-feature-index">C / 03</div><strong>Three formats</strong><span>PDF, DOCX, dan EPUB siap dibaca.</span></div>
+                        <div class="lumina-feature"><div class="lumina-feature-index">C / 03</div><strong>Multi-format</strong><span>PDF, DOCX, EPUB, TXT, dan MD siap dibaca.</span></div>
                     </div>
                 </div>
             </div>
