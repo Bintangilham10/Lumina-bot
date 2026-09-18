@@ -263,13 +263,13 @@ def _retrieve_scored_documents(
     qa_chain: DocumentQaChain,
     question: str,
 ) -> list[Document] | None:
-    min_relevance_score = getattr(qa_chain, "min_relevance_score", None)
     vector_store = getattr(qa_chain, "vector_store", None)
-    if min_relevance_score is None or vector_store is None:
+    if vector_store is None:
         return None
     if not hasattr(vector_store, "similarity_search_with_relevance_scores"):
         return None
 
+    min_relevance_score = getattr(qa_chain, "min_relevance_score", None)
     results = vector_store.similarity_search_with_relevance_scores(
         question,
         k=getattr(qa_chain, "retrieval_k", 4),
@@ -277,7 +277,7 @@ def _retrieve_scored_documents(
     documents: list[Document] = []
     for document, score in results:
         relevance_score = float(score)
-        if relevance_score < min_relevance_score:
+        if min_relevance_score is not None and relevance_score < min_relevance_score:
             continue
         documents.append(
             Document(
