@@ -40,7 +40,7 @@ class LiveSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
             vector_store = create_vector_store(
                 chunks=chunks,
-                collection_name=document_collection_name("smoke", "0" * 64, 160, 20),
+                collection_name=document_collection_name("smoke", "0" * 64, 160, 20, None),
                 persist_directory=temp_dir,
             )
             qa_chain = create_qa_chain(vector_store, k=1, temperature=0)
