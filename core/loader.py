@@ -216,7 +216,12 @@ def _load_pdf(path: Path) -> tuple[list[Document], int]:
     documents: list[Document] = []
     metadata = _base_metadata(path, "PDF")
 
-    with fitz.open(path) as pdf:
+    try:
+        pdf = fitz.open(path)
+    except fitz.FileDataError as exc:
+        raise ValueError(f"Berkas PDF rusak atau tidak valid: {exc}") from exc
+
+    with pdf:
         if pdf.is_encrypted:
             raise ValueError(
                 "Berkas PDF ini terkunci atau dilindungi password. "
@@ -239,7 +244,11 @@ def _load_pdf(path: Path) -> tuple[list[Document], int]:
 
 
 def _load_docx(path: Path) -> list[Document]:
-    document = docx.Document(path)
+    try:
+        document = docx.Document(path)
+    except Exception as exc:
+        raise ValueError(f"Berkas DOCX rusak atau tidak valid: {exc}") from exc
+
     metadata = _base_metadata(path, "DOCX")
     sections: list[Document] = []
     current_section_name = "Document"
@@ -298,7 +307,11 @@ def _load_docx(path: Path) -> list[Document]:
 
 
 def _load_epub(path: Path) -> list[Document]:
-    book = epub.read_epub(str(path))
+    try:
+        book = epub.read_epub(str(path))
+    except Exception as exc:
+        raise ValueError(f"Berkas EPUB rusak atau tidak valid: {exc}") from exc
+
     documents: list[Document] = []
     metadata = _base_metadata(path, "EPUB")
 
