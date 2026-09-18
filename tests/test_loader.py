@@ -277,6 +277,24 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(loaded.total_pages, 1)
             self.assertEqual(loaded.documents[0].page_content, "Header Gabungan")
 
+    def test_load_document_rejects_corrupted_pdf_with_valid_header(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "corrupt.pdf"
+            path.write_bytes(b"%PDF-corrupted-binary-without-xref")
+
+            with self.assertRaisesRegex(ValueError, "PDF rusak"):
+                load_document(path)
+
+    def test_load_document_rejects_corrupted_docx_package(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "corrupt.docx"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("[Content_Types].xml", "<invalid-xml")
+                z.writestr("word/document.xml", "<invalid-xml")
+
+            with self.assertRaisesRegex(ValueError, "DOCX rusak"):
+                load_document(path)
+
 
 if __name__ == "__main__":
     unittest.main()
