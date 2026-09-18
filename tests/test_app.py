@@ -210,7 +210,12 @@ class AppFormattingTests(unittest.TestCase):
     def test_export_chat_markdown_formats_conversation(self) -> None:
         messages = [
             {"role": "user", "content": "Halo apa isi dokumen?"},
-            {"role": "assistant", "content": "Dokumen ini tentang AI.", "sources": ["source 1"]},
+            {
+                "role": "assistant",
+                "content": "Dokumen ini tentang AI.",
+                "sources": ["<div class='src'>source 1</div>"],
+                "source_lines": ["[1] doc.pdf | page/section 1 | relevance 0.95 - Cuplikan AI."],
+            },
         ]
         markdown = export_chat_markdown(messages, "doc.pdf")
 
@@ -218,6 +223,8 @@ class AppFormattingTests(unittest.TestCase):
         self.assertIn("**Dokumen:** doc.pdf", markdown)
         self.assertIn("### Pengguna:\nHalo apa isi dokumen?", markdown)
         self.assertIn("### Lumina Doc:\nDokumen ini tentang AI.", markdown)
+        self.assertIn("**Sumber Rujukan:**", markdown)
+        self.assertIn("[1] doc.pdf | page/section 1", markdown)
 
 
 if __name__ == "__main__":
