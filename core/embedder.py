@@ -15,7 +15,23 @@ from utils.helpers import ensure_directory
 EMBEDDING_MODEL_ENV_VAR = "GEMINI_EMBEDDING_MODEL"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-004"
 DEFAULT_PERSIST_DIRECTORY = "chroma_db"
+EMBEDDING_BATCH_SIZE_ENV_VAR = "LUMINA_EMBEDDING_BATCH_SIZE"
 DEFAULT_EMBEDDING_BATCH_SIZE = 100
+
+
+def resolve_embedding_batch_size(batch_size: int | None = None) -> int:
+    """Resolve embedding batch size from parameter, environment, or default."""
+    if batch_size is not None and batch_size > 0:
+        return batch_size
+    raw_value = os.getenv(EMBEDDING_BATCH_SIZE_ENV_VAR, "").strip().strip("'\"")
+    if raw_value:
+        try:
+            val = int(raw_value)
+            if val > 0:
+                return val
+        except ValueError:
+            pass
+    return DEFAULT_EMBEDDING_BATCH_SIZE
 
 
 def resolve_embedding_model(model: str | None = None) -> str:
@@ -44,8 +60,9 @@ def create_vector_store(
     if persist_directory is not None:
         persist_path = str(ensure_directory(persist_directory))
 
+    effective_batch_size = resolve_embedding_batch_size(batch_size)
     embeddings = create_embeddings(embedding_model)
-    first_batch = chunks[:batch_size]
+    first_batch = chunks[:effective_batch_size]
     store = Chroma.from_documents(
         documents=first_batch,
         embedding=embeddings,
@@ -54,10 +71,10 @@ def create_vector_store(
         collection_metadata={"hnsw:space": "cosine"},
     )
 
-    remaining_chunks = chunks[batch_size:]
+    remaining_chunks = chunks[effective_batch_size:]
     if remaining_chunks:
-        for i in range(0, len(remaining_chunks), batch_size):
-            store.add_documents(remaining_chunks[i : i + batch_size])
+        for i in range(0, len(remaining_chunks), effective_batch_size):
+            store.add_documents(remaining_chunks[i : i + effective_batch_size])
 
     return store
 
