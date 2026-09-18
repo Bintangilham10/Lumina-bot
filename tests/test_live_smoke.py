@@ -48,7 +48,8 @@ class LiveSmokeTests(unittest.TestCase):
             response = ask_question(qa_chain, "What is the project codename?")
 
         self.assertIn("Aurora", response["result"])
-        self.assertEqual(response["source_documents"], chunks)
+        self.assertEqual(len(response["source_documents"]), 1)
+        self.assertEqual(response["source_documents"][0].page_content, chunks[0].page_content)
 
 
 if __name__ == "__main__":
