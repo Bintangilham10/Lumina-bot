@@ -34,6 +34,10 @@ class HelperTests(unittest.TestCase):
 
         self.assertEqual(clean_text(text), "Hello world and peace")
 
+    def test_clean_text_handles_none_and_empty(self) -> None:
+        self.assertEqual(clean_text(None), "")
+        self.assertEqual(clean_text(""), "")
+
     def test_safe_collection_name_normalizes_text_parts(self) -> None:
         name = safe_collection_name(["Lumina Doc", "File #1", "!!!"])
 
