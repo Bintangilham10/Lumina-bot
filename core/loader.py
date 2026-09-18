@@ -307,6 +307,8 @@ def _load_epub(path: Path) -> list[Document]:
             continue
 
         soup = BeautifulSoup(item.get_content(), "html.parser")
+        for tag in soup(["script", "style"]):
+            tag.decompose()
         text = clean_text(soup.get_text(separator="\n"))
         if text:
             index = len(documents) + 1
@@ -381,7 +383,7 @@ def _load_text(path: Path, suffix: str) -> list[Document]:
 
 def _is_epub_navigation_item(item) -> bool:
     """Return whether an EPUB document item is navigation-only content."""
-    if isinstance(item, epub.EpubNav):
+    if isinstance(item, (epub.EpubNav, epub.EpubNcx)):
         return True
-    name = str(item.get_name() or "").lower()
-    return name in {"nav.xhtml", "toc.xhtml", "toc.html"}
+    name = Path(str(item.get_name() or "")).name.lower()
+    return name in {"nav.xhtml", "toc.xhtml", "toc.html", "toc.ncx"}
