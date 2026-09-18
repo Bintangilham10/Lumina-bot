@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import io
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from langchain_core.documents import Document
@@ -21,6 +21,7 @@ from main import (
     relevance_score_value,
     temperature_value,
 )
+from utils.helpers import DEFAULT_MAX_FILE_SIZE_MB
 
 
 class CliTests(unittest.TestCase):
@@ -61,6 +62,8 @@ class CliTests(unittest.TestCase):
                 "250",
                 "--max-chunks",
                 "750",
+                "--embedding-batch-size",
+                "50",
             ]
         )
 
@@ -70,11 +73,17 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.retrieval_k, 5)
         self.assertEqual(args.temperature, 0)
         self.assertEqual(args.min_relevance_score, 0.65)
+        self.assertEqual(args.embedding_batch_size, 50)
         self.assertTrue(args.hide_sources)
         self.assertTrue(args.rebuild_index)
         self.assertEqual(args.max_file_size_mb, 25)
         self.assertEqual(args.max_pages, 250)
         self.assertEqual(args.max_chunks, 750)
+
+    def test_build_parser_uses_default_file_size_limit(self) -> None:
+        args = build_parser().parse_args(["sample.pdf"])
+
+        self.assertEqual(args.max_file_size_mb, DEFAULT_MAX_FILE_SIZE_MB)
 
     def test_format_cli_snippet_normalizes_and_truncates_text(self) -> None:
         snippet = format_cli_snippet("  Alpha\n\n beta   gamma  ", max_length=14)
@@ -120,6 +129,16 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue().strip(), cli_safe_error_message())
         self.assertNotIn("api-key", stderr.getvalue())
         self.assertNotIn("secrets", stderr.getvalue())
+
+    def test_cli_displays_clear_message_for_file_not_found(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("main.load_environment", return_value="dummy_key"):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = run_cli(["non_existent_file.pdf"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error: Document not found", stderr.getvalue())
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ from langchain_core.documents import Document
 from core.chatbot import (
     DocumentQaChain,
     ask_question,
+    build_retrieval_query,
+    format_chat_history,
     format_documents_context,
     stream_question,
 )
@@ -138,6 +140,29 @@ class ChatbotStreamingTests(unittest.TestCase):
         self.assertIn("Strong source paragraph.", llm.prompts[0])
         self.assertNotIn("Weak source paragraph.", llm.prompts[0])
 
+    def test_ask_question_attaches_relevance_scores_when_threshold_is_none(self) -> None:
+        doc = Document(
+            page_content="Paragraph content.",
+            metadata={"filename": "doc.pdf", "page": 1},
+        )
+        vector_store = FakeScoredVectorStore([(doc, 0.88)])
+        llm = FakeLlm()
+        qa_chain = DocumentQaChain(
+            retriever=FakeRetriever([]),
+            llm=llm,  # type: ignore[arg-type]
+            vector_store=vector_store,  # type: ignore[arg-type]
+            retrieval_k=1,
+            min_relevance_score=None,
+        )
+
+        response = ask_question(qa_chain, "What is here?")
+
+        self.assertEqual(len(response["source_documents"]), 1)
+        self.assertEqual(
+            response["source_documents"][0].metadata["relevance_score"],
+            0.88,
+        )
+
     def test_ask_question_returns_not_found_when_no_source_passes_threshold(self) -> None:
         document = Document(
             page_content="Weak source paragraph.",
@@ -184,6 +209,65 @@ class ChatbotStreamingTests(unittest.TestCase):
             ),
         )
         self.assertNotIn("doc.pdf", context)
+
+    def test_stream_question_includes_conversation_history_in_prompt(self) -> None:
+        documents = [
+            Document(page_content="Penulis adalah Budi.", metadata={"page": 1}),
+        ]
+        llm = FakeLlm()
+        qa_chain = FakeQaChain(documents, llm)
+        history = [
+            {"role": "user", "content": "Siapa penulis dokumen ini?"},
+            {"role": "assistant", "content": "Penulis dokumen ini adalah Budi."},
+        ]
+
+        answer_stream, sources = stream_question(
+            qa_chain,
+            "Berapa usianya?",
+            chat_history=history,
+        )
+        _ = list(answer_stream)
+
+        self.assertIn("Conversation History:", llm.prompts[0])
+        self.assertIn("User: Siapa penulis dokumen ini?", llm.prompts[0])
+        self.assertIn("AI: Penulis dokumen ini adalah Budi.", llm.prompts[0])
+        self.assertIn("Question: Berapa usianya?", llm.prompts[0])
+
+    def test_build_retrieval_query_enriches_follow_up_cues(self) -> None:
+        history = [
+            {"role": "user", "content": "Jelaskan sistem autentikasi aplikasi"},
+            {"role": "assistant", "content": "Sistem menggunakan JWT token."},
+        ]
+
+        # Short question with cue "mengapa"
+        enriched = build_retrieval_query("Mengapa demikian?", history)
+        self.assertEqual(enriched, "Jelaskan sistem autentikasi aplikasi Mengapa demikian?")
+
+        # Short question with cue "contoh"
+        enriched_example = build_retrieval_query("Berikan contohnya", history)
+        self.assertEqual(enriched_example, "Jelaskan sistem autentikasi aplikasi Berikan contohnya")
+
+        # Independent long question without cues
+        standalone = build_retrieval_query("Bagaimana cara deploy aplikasi ke server kubernetes?", history)
+        self.assertIn("kubernetes", standalone)
+
+        # Without history
+        plain = build_retrieval_query("Apa itu JWT?", None)
+        self.assertEqual(plain, "Apa itu JWT?")
+
+    def test_stream_question_rejects_oversized_question(self) -> None:
+        qa_chain = FakeQaChain([], FakeLlm())
+        oversized = "a" * 4001
+        with self.assertRaisesRegex(ValueError, "too long"):
+            stream_question(qa_chain, oversized)
+
+    def test_chunk_text_handles_various_payloads(self) -> None:
+        from core.chatbot import _chunk_text
+        self.assertEqual(_chunk_text(None), "")
+        self.assertEqual(_chunk_text("simple text"), "simple text")
+        self.assertEqual(_chunk_text(FakeChunk(None)), "")
+        self.assertEqual(_chunk_text(FakeChunk("chunk content")), "chunk content")
+        self.assertEqual(_chunk_text([{"text": "part1"}, {"text": "part2"}]), "part1part2")
 
 
 if __name__ == "__main__":

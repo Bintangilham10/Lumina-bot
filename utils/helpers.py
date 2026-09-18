@@ -11,8 +11,8 @@ from typing import Iterable
 from dotenv import load_dotenv
 
 
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub"}
-DEFAULT_MAX_FILE_SIZE_MB = 50
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub", ".txt", ".md"}
+DEFAULT_MAX_FILE_SIZE_MB = 55
 DEFAULT_MAX_PAGES = 500
 DEFAULT_MAX_CHUNKS = 1000
 
@@ -20,7 +20,7 @@ DEFAULT_MAX_CHUNKS = 1000
 def load_environment() -> str:
     """Load environment variables and return the Google API key."""
     load_dotenv()
-    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip().strip("'\"")
     if not api_key:
         raise RuntimeError(
             "GOOGLE_API_KEY is not configured. Copy .env.example to .env and add your key."
@@ -110,9 +110,12 @@ def validate_document_limits(
         )
 
 
-def clean_text(text: str) -> str:
+def clean_text(text: str | None) -> str:
     """Normalize extracted text while preserving paragraph boundaries."""
-    text = str(text).replace("\x00", " ")
+    if not text:
+        return ""
+    text = str(text).replace("\x00", " ").replace("\ufeff", "").replace("\u200b", "")
+    text = text.replace("\xa0", " ")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"[ \t\f\v]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)

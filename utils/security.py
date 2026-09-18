@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import math
 import os
 from threading import Lock
 
@@ -15,18 +16,24 @@ ALLOWED_EMBEDDING_MODELS_ENV_VAR = "LUMINA_ALLOWED_EMBEDDING_MODELS"
 MAX_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_QUESTIONS_PER_MINUTE"
 MAX_GLOBAL_QUESTIONS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_GLOBAL_QUESTIONS_PER_MINUTE"
 MAX_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR = "LUMINA_MAX_AUTH_ATTEMPTS_PER_MINUTE"
+MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE_ENV_VAR = (
+    "LUMINA_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE"
+)
 DEFAULT_MAX_QUESTIONS_PER_MINUTE = 20
 DEFAULT_MAX_GLOBAL_QUESTIONS_PER_MINUTE = 120
 DEFAULT_MAX_AUTH_ATTEMPTS_PER_MINUTE = 5
+DEFAULT_MAX_GLOBAL_AUTH_ATTEMPTS_PER_MINUTE = 30
 RATE_LIMIT_WINDOW_SECONDS = 60
 _global_question_timestamps: list[float] = []
+_global_auth_timestamps: list[float] = []
 _global_rate_limit_lock = Lock()
+_global_auth_lock = Lock()
 
 
 def configured_password() -> str:
     """Return the optional app password configured by the operator."""
     load_dotenv()
-    return os.getenv(APP_PASSWORD_ENV_VAR, "").strip()
+    return os.getenv(APP_PASSWORD_ENV_VAR, "").strip().strip("'\"")
 
 
 def verify_password(candidate: str, expected: str) -> bool:
@@ -51,7 +58,7 @@ def int_from_env(name: str, default: int, minimum: int = 0) -> int:
 def configured_model_options(env_var: str, default_model: str) -> list[str]:
     """Return a de-duplicated allowlist of model options for production UI."""
     raw_value = os.getenv(env_var, "")
-    options = [value.strip() for value in raw_value.split(",") if value.strip()]
+    options = [value.strip().strip("'\"") for value in raw_value.split(",") if value.strip().strip("'\"")]
     if default_model not in options:
         options.insert(0, default_model)
 
@@ -74,8 +81,9 @@ def check_rate_limit(
 
     recent = active_rate_limit_timestamps(timestamps, now, window_seconds)
     if len(recent) >= max_events:
-        oldest = min(recent)
-        retry_after = max(1, int(window_seconds - (now - oldest)))
+        sorted_recent = sorted(recent)
+        expiring_timestamp = sorted_recent[len(sorted_recent) - max_events]
+        retry_after = max(1, math.ceil(window_seconds - (now - expiring_timestamp)))
         return False, recent, retry_after
 
     recent.append(now)
@@ -111,4 +119,23 @@ def check_global_rate_limit(
             window_seconds,
         )
         _global_question_timestamps = timestamps
+        return allowed, retry_after
+
+
+def check_global_auth_rate_limit(
+    now: float,
+    max_events: int,
+    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+) -> tuple[bool, int]:
+    """Apply a process-wide auth attempt rate limit across Streamlit sessions."""
+    global _global_auth_timestamps
+
+    with _global_auth_lock:
+        allowed, timestamps, retry_after = check_rate_limit(
+            list(_global_auth_timestamps),
+            now,
+            max_events,
+            window_seconds,
+        )
+        _global_auth_timestamps = timestamps
         return allowed, retry_after

@@ -62,15 +62,28 @@ def build_source_references(
 ) -> list[SourceReference]:
     """Build numbered, deduplicated source references from retrieved documents."""
     references: list[SourceReference] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: dict[tuple[str, str, str], int] = {}
 
     for document in documents:
         key = source_metadata(document)
+        score = source_relevance_score(document)
         if key in seen:
+            idx = seen[key]
+            existing = references[idx]
+            if score is not None and (existing.relevance_score is None or score > existing.relevance_score):
+                references[idx] = SourceReference(
+                    number=existing.number,
+                    key=existing.key,
+                    filename=existing.filename,
+                    page=existing.page,
+                    section=existing.section,
+                    snippet=existing.snippet,
+                    relevance_score=score,
+                )
             continue
-        seen.add(key)
 
         filename, page, section = key
+        seen[key] = len(references)
         references.append(
             SourceReference(
                 number=len(references) + 1,
@@ -79,7 +92,7 @@ def build_source_references(
                 page=page,
                 section=section,
                 snippet=normalize_source_snippet(document.page_content, snippet_length),
-                relevance_score=source_relevance_score(document),
+                relevance_score=score,
             )
         )
         if max_sources is not None and len(references) >= max_sources:
@@ -103,3 +116,35 @@ def format_source_context(documents: list[Document]) -> str:
         blocks.append(f"{label}\n{document.page_content}")
 
     return "\n\n".join(blocks)
+
+
+def format_source_lines(
+    documents: list[Document],
+    max_sources: int | None = None,
+    snippet_length: int = 220,
+) -> list[str]:
+    """Format retrieved documents as readable citation lines."""
+    sources: list[str] = []
+    references = build_source_references(
+        list(documents),
+        max_sources=max_sources,
+        snippet_length=snippet_length,
+    )
+
+    for reference in references:
+        label_parts = [
+            f"[{reference.number}] {reference.filename}",
+            f"page/section {reference.page}",
+        ]
+        if reference.section and reference.section not in {
+            reference.page,
+            f"Page {reference.page}",
+        }:
+            label_parts.append(reference.section)
+        if reference.relevance_score is not None:
+            label_parts.append(f"relevance {reference.relevance_score:.2f}")
+
+        label = " | ".join(label_parts)
+        sources.append(f"{label} - {reference.snippet}" if reference.snippet else label)
+
+    return sources

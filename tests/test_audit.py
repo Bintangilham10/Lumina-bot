@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -75,6 +76,25 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(stats["document_count"], 2)
         self.assertEqual(stats["text_chars"], 12)
         self.assertEqual(stats["estimated_tokens"], 3)
+
+    def test_audit_event_concurrent_writes(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+            path = Path(temp_dir) / "audit.jsonl"
+            threads = []
+            for i in range(10):
+                t = threading.Thread(target=audit_event, args=("test_event",), kwargs={"log_path": path, "thread_id": i})
+                threads.append(t)
+                t.start()
+            for t in threads:
+                t.join()
+
+            lines = path.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 10)
+
+    def test_audit_event_handles_os_error_gracefully(self) -> None:
+        # Should not raise any exception when path cannot be written
+        read_only_or_invalid = Path("/sys/invalid/path/audit.jsonl")
+        audit_event("dummy_event", log_path=read_only_or_invalid)
 
 
 if __name__ == "__main__":

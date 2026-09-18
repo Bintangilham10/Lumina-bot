@@ -40,6 +40,11 @@ class SplitterTests(unittest.TestCase):
             self.assertEqual(chunk.metadata["total_chunks"], len(chunks))
             self.assertEqual(chunk.metadata["source"], "sample.pdf")
 
+    def test_split_documents_respects_question_mark_separators(self) -> None:
+        doc = Document(page_content="Apa kabar? Saya baik-baik saja! Terima kasih.")
+        chunks = split_documents([doc], chunk_size=20, chunk_overlap=0)
+        self.assertTrue(len(chunks) >= 2)
+
 
 if __name__ == "__main__":
     unittest.main()

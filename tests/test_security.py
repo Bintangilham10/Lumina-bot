@@ -8,15 +8,21 @@ from unittest.mock import patch
 
 from utils.security import (
     active_rate_limit_timestamps,
+    check_global_auth_rate_limit,
     check_global_rate_limit,
     check_rate_limit,
     configured_model_options,
+    configured_password,
     int_from_env,
     verify_password,
 )
 
 
 class SecurityHelperTests(unittest.TestCase):
+    def test_configured_password_strips_quotes_and_whitespace(self) -> None:
+        with patch.dict(os.environ, {"LUMINA_APP_PASSWORD": ' "my-secret-pass" '}, clear=True):
+            self.assertEqual(configured_password(), "my-secret-pass")
+
     def test_verify_password_uses_expected_value(self) -> None:
         self.assertTrue(verify_password("secret", "secret"))
         self.assertFalse(verify_password("wrong", "secret"))
@@ -40,6 +46,16 @@ class SecurityHelperTests(unittest.TestCase):
                 configured_model_options("LUMINA_MODELS", "default-model"),
                 ["default-model", "model-a", "model-b"],
             )
+
+    def test_configured_model_options_preserves_existing_model_position(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"LUMINA_MODELS": "model-a, default-model, model-b"},
+            clear=True,
+        ):
+            options = configured_model_options("LUMINA_MODELS", "default-model")
+            self.assertEqual(options, ["model-a", "default-model", "model-b"])
+            self.assertEqual(options.index("default-model"), 1)
 
     def test_check_rate_limit_blocks_when_window_is_full(self) -> None:
         allowed, timestamps, retry_after = check_rate_limit(
@@ -99,6 +115,32 @@ class SecurityHelperTests(unittest.TestCase):
 
         self.assertTrue(allowed)
         self.assertEqual(retry_after, 0)
+
+    def test_check_global_auth_rate_limit_blocks_across_sessions(self) -> None:
+        with patch("utils.security._global_auth_timestamps", []):
+            first_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=1.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertTrue(first_session_allowed)
+            self.assertEqual(retry_after, 0)
+
+            second_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=2.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertTrue(second_session_allowed)
+            self.assertEqual(retry_after, 0)
+
+            new_session_allowed, retry_after = check_global_auth_rate_limit(
+                now=3.0,
+                max_events=2,
+                window_seconds=60,
+            )
+            self.assertFalse(new_session_allowed)
+            self.assertEqual(retry_after, 58)
 
 
 if __name__ == "__main__":
