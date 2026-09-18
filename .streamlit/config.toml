@@ -2,3 +2,6 @@
 maxUploadSize = 55
 enableXsrfProtection = true
 enableCORS = false
+
+[browser]
+gatherUsageStats = false
