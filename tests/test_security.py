@@ -47,6 +47,16 @@ class SecurityHelperTests(unittest.TestCase):
                 ["default-model", "model-a", "model-b"],
             )
 
+    def test_configured_model_options_preserves_existing_model_position(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"LUMINA_MODELS": "model-a, default-model, model-b"},
+            clear=True,
+        ):
+            options = configured_model_options("LUMINA_MODELS", "default-model")
+            self.assertEqual(options, ["model-a", "default-model", "model-b"])
+            self.assertEqual(options.index("default-model"), 1)
+
     def test_check_rate_limit_blocks_when_window_is_full(self) -> None:
         allowed, timestamps, retry_after = check_rate_limit(
             [1.0, 2.0],
