@@ -110,8 +110,10 @@ def validate_document_limits(
         )
 
 
-def clean_text(text: str) -> str:
+def clean_text(text: str | None) -> str:
     """Normalize extracted text while preserving paragraph boundaries."""
+    if not text:
+        return ""
     text = str(text).replace("\x00", " ").replace("\ufeff", "").replace("\u200b", "")
     text = text.replace("\xa0", " ")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
