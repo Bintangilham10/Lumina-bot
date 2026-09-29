@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -11,7 +11,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
